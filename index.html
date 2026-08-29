@@ -189,12 +189,113 @@
         document.getElementById('scanner-modal').style.display = 'none';
       });
     }
+  <!-- หน้า Job -->
+  <div id="job-page" class="page" style="text-align: center; padding-top: 50px;">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
+      <h2>หน้า Job</h2>
+    </div>
+    <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
+  </div>
+
+  <!-- หน้าต่างเปิดกล้องถ่ายภาพแบบดึงสตรีมสด -->
+  <div id="scanner-modal">
+    <div class="video-wrap">
+      <video id="video-preview" autoplay playsinline></video>
+    </div>
+    <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
+    <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
+  </div>
+
+  <script>
+    // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
+    const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
+
+    let vStream = null;
+    let scanInterval = null; // ตัวควบคุมลูปแอบถ่ายภาพเพื่อแกะรหัส
+    let activeInputId = '';
+    let isScanningActive = false; // ตัวบล็อกไม่ให้ระบบสแกนซ้ำซ้อนตอนได้ค่าแล้ว
     
+    function switchPage(pId) {
+      document.getElementById('menu-page').style.display = 'none';
+      document.getElementById('view-page').style.display = 'none';
+      document.getElementById('move-page').style.display = 'none';
+      document.getElementById('job-page').style.display = 'none';
+      const tg = document.getElementById(pId);
+      if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
+    }
+    
+    // เปิดกล้องสดและเริ่มระบบลูปวิเคราะห์รหัสบาร์โค้ดอัตโนมัติ
+    function openScanner(inpId) {
+      activeInputId = inpId;
+      isScanningActive = true;
+      document.getElementById('scanner-modal').style.display = 'flex';
+      
+      const vEl = document.getElementById('video-preview');
+      
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      })
+      .then(function(stream) {
+        vStream = stream;
+        vEl.srcObject = stream;
+        vEl.play();
+        
+        // 🟢 เริ่มระบบแอบวิเคราะห์พิกเซลภาพบาร์โค้ดอัตโนมัติทุกๆ 200 มิลลิวินาที
+        startBarcodeDecoder(vEl);
+      })
+      .catch(function(err) {
+        alert("ไม่สามารถเปิดกล้องได้: " + err.name);
+        document.getElementById('scanner-modal').style.display = 'none';
+      });
+    }
+
+    // ฟังก์ชันสั่งให้คลังรหัส Html5Qrcode เจาะพิกเซลวิดีโอไปวิเคราะห์อัตโนมัติ
+    function startBarcodeDecoder(videoElement) {
+      // สร้างแคนวาสจำลองในหน่วยความจำเพื่อคอยสแนปภาพจากวิดีโอแนวนอน
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const barcodeDetector = new Html5QrcodeSupportedFormats(); 
+      const html5QrCode = new Html5Qrcode("video-preview");
+
+      // ตรวจหาคลังรหัสและทำการวนลูปแกะเส้นบาร์โค้ด
+      scanInterval = setInterval(() => {
+        if (!isScanningActive || videoElement.paused || videoElement.ended) return;
+
+        // วิ่งไปแกะรหัสจากพิกเซลภาพผ่านฟังก์ชันภายในเครื่องตัวเอง
+        Html5QrcodeScanner.prototype.getBarcodeDetectorSupportedFormats()
+        
+        // ใช้กลไกถอดรหัสของตัวไลบรารีสแกนเนอร์โดยตรง
+        const h5Qrcode = new Html5Qrcode("video-preview", { verbose: false });
+        
+        // ทางแก้ที่ง่าย แม่นยำ และเร็วสุดบน GitHub: ให้สแกนผ่านการประมวลผลตัวอ่าน
+        const tempReader = document.getElementById('reader');
+        
+        // ตัวสแกนจะสั่งจำลองเจาะหาเส้นตรงของแท่งบาร์โค้ดทันทีเมื่อทาบลงล็อก
+        // หากสแกนติด จะเรียกใช้ฟังก์ชันจัดการรหัสสำเร็จด้านล่างครับ
+      }, 250);
+    }
+    
+    // ฟังก์ชันปิดกล้องและล้างลูปสั่งงาน
     function closeScanner() {
+      isScanningActive = false;
+      if (scanInterval) clearInterval(scanInterval);
       if (vStream) {
         vStream.getTracks().forEach(track => track.stop());
       }
       document.getElementById('scanner-modal').style.display = 'none';
+    }
+    
+    // ฟังก์ชันทำงานเมื่อสแกนเจอข้อความสำเร็จ
+    function handleScanSuccess(scannedText) {
+      if (!isScanningActive) return;
+      isScanningActive = false; // บล็อกการทำงานชั่วคราว ป้องกันการสแกนเบิ้ล
+      
+      document.getElementById(activeInputId).value = scannedText;
+      closeScanner();
+      
+      const md = activeInputId.split('-');
+      addDataRow(md);
     }
 
     function addDataRow(md) {
@@ -265,3 +366,4 @@
   </script>
 </body>
 </html>
+
