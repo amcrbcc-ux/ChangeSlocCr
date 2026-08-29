@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
-  <!-- นำเข้าไลบรารีสแกนเนอร์เวอร์ชันเสถียร -->
   <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; }
@@ -14,7 +13,6 @@
     .btn-blue { background-color: #1e88e5; }
     .btn-orange { background-color: #fb8c00; }
     .btn-purple { background-color: #8e24aa; }
-    
     .page { display: none; padding: 15px; }
     #menu-page { display: flex; }
     .header-bar { display: flex; align-items: center; margin-bottom: 15px; }
@@ -27,11 +25,10 @@
     .btn-scan { background-color: #009688; }
     .btn-add { background-color: #4caf50; }
     
-    /* สไตล์สำหรับกลุ่มปุ่มใต้ตาราง */
     .btn-bottom-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; margin-bottom: 30px; }
-    .btn-clear { background-color: #e53935; }
-    .btn-submit { background-color: #2e7d32; }
-    .btn-full-clear { background-color: #e53935; grid-column: span 2; padding: 16px; font-size: 1.2rem; }
+    .btn-clear { background-color: #e53935; border: none; border-radius: 8px; color: white; padding: 14px; font-weight: bold; cursor: pointer; }
+    .btn-submit { background-color: #2e7d32; border: none; border-radius: 8px; color: white; padding: 14px; font-weight: bold; cursor: pointer; }
+    .btn-full-clear { background-color: #e53935; grid-column: span 2; padding: 16px; font-size: 1.2rem; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
     
     .table-container { width: 100%; overflow-x: auto; border: 1px solid #ddd; background: white; border-radius: 8px; margin: 0; padding: 0; }
     table { width: 100%; border-collapse: collapse; font-size: 0.95rem; white-space: nowrap; }
@@ -41,7 +38,6 @@
     .col-size { min-width: 100px; }
     .col-insp { min-width: 120px; }
     
-    /* สไตล์กล่องป็อปอัปแถบกล้องสแกนแนวนอนทรงแคบเตี้ย */
     #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
     #reader { width: 95%; max-width: 340px; height: 120px; border: 3px solid #009688; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
     #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
@@ -90,7 +86,6 @@
         <tbody></tbody>
       </table>
     </div>
-    <!-- ปุ่มล้างข้อมูลย้ายอยู่ใต้ตารางหน้าดูแถว -->
     <div class="btn-bottom-group">
       <button class="btn-action btn-full-clear" onclick="clearPageData('view')">🗑️ ล้างข้อมูลทั้งหมด</button>
     </div>
@@ -130,10 +125,9 @@
         <tbody></tbody>
       </table>
     </div>
-    <!-- ปุ่มล้างข้อมูลและปุ่มย้ายแถวย้ายอยู่ใต้ตารางหน้าย้ายแถว -->
     <div class="btn-bottom-group">
-      <button class="btn-action btn-clear" onclick="clearPageData('move')">🗑️ ล้างข้อมูล</button>
-      <button class="btn-action btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
+      <button class="btn-clear" onclick="clearPageData('move')">🗑️ ล้างข้อมูล</button>
+      <button class="btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
     </div>
   </div>
 
@@ -146,7 +140,6 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
-  <!-- หน้าต่างเปิดกรอบกล้องสแกน -->
   <div id="scanner-modal">
     <div id="reader"></div>
     <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
@@ -169,17 +162,12 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // ระบบเปิดกล้องและสั่งถอดรหัสบาร์โค้ดสตรีมสดอัตโนมัติ 100% บน GitHub
     function openScanner(inpId) {
       activeInputId = inpId;
       document.getElementById('scanner-modal').style.display = 'flex';
-      
-      // เลือกผูกกล้องแบบดึงวิดีโอเข้าชุดวิเคราะห์พิกเซลแถบตรง 3:1 ไม่หน่วงและไม่มืดดำ
       html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-        fps: 30, 
-        qrbox: { width: 310, height: 65 }, // บีบเส้นสแกนให้แบนพอดีแท่งบาร์โค้ดสินค้า
-        aspectRatio: 2.5,
-        videoConstraints: { facingMode: "environment" } // เรียกใช้เลนส์หลังมือถือโดยตรง
+        fps: 30, qrbox: { width: 310, height: 65 }, aspectRatio: 2.5,
+        videoConstraints: { facingMode: "environment" }
       });
       html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     }
@@ -187,20 +175,15 @@
     function closeScanner() {
       const md = document.getElementById('scanner-modal');
       if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear()
-          .then(() => { md.style.display = 'none'; })
-          .catch(() => { md.style.display = 'none'; });
+        html5QrcodeScanner.clear().then(() => { md.style.display = 'none'; }).catch(() => { md.style.display = 'none'; });
       } else { md.style.display = 'none'; }
     }
     
-    // เมื่อเลนส์สแกนติดตัวอักษรสำเร็จ
     function onScanSuccess(txt) {
       document.getElementById(activeInputId).value = txt;
       closeScanner();
-      
-      // ปลุกฟังก์ชันกดปุ่ม "+" ดึงฐานข้อมูลสินค้ามาลงตารางอัตโนมัติทันที
       const md = activeInputId.split('-');
-      addDataRow(md[0]);
+      addDataRow(md);
     }
     function onScanFailure(err) {}
 
@@ -242,6 +225,7 @@
       document.querySelector('#' + md + '-table tbody').innerHTML = '';
     }
     
+    // 🛠️ แก้ไขไวยากรณ์ตำแหน่งดึงข้อมูลอาเรย์ของช่องตารางให้ถูกต้อง ปลดล็อกบั๊กปุ่มค้าง
     function submitMoveData() {
       const rows = document.querySelectorAll('#move-table tbody tr');
       if(rows.length === 0) { alert('ไม่มีข้อมูลในตาราง'); return; }
@@ -250,8 +234,13 @@
         let c = r.getElementsByTagName('td');
         if(c.length >= 7) {
           svData.push({
-            batchNo: c[0].textContent, sloc: c[1].textContent, size: c[2].textContent,
-            weight: c[3].textContent, inspection: c[4].textContent, maker: c[5].textContent, spec: c[6].textContent
+            batchNo: c[0].textContent, 
+            sloc: c[1].textContent, 
+            size: c[2].textContent,
+            weight: c[3].textContent, 
+            inspection: c[4].textContent, 
+            maker: c[5].textContent, 
+            spec: c[6].textContent
           });
         }
       });
