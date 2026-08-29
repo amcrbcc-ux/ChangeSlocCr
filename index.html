@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>ระบบคอยล์</title>
+  <script src="https://jsdelivr.net"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; margin: 0; padding: 0; background-color: #f5f7fb; color: #333; }
+    .menu-container { display: flex; flex-direction: column; gap: 20px; padding: 30px 20px; height: 100vh; justify-content: center; }
+    .btn-main { width: 100%; padding: 25px; font-size: 1.4rem; font-weight: bold; border: none; border-radius: 12px; color: white; cursor: pointer; display: block; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-blue { background-color: #1e88e5; }
+    .btn-orange { background-color: #fb8c00; }
+    .btn-purple { background-color: #8e24aa; }
+    .page { display: none; padding: 15px; }
+    #menu-page { display: flex; }
+    .header-bar { display: flex; align-items: center; margin-bottom: 15px; }
+    .btn-back { padding: 10px 20px; background: #607d8b; color: white; border: none; border-radius: 6px; font-weight: bold; margin-right: 15px; cursor: pointer; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 5px; }
+    .form-control { width: 100%; padding: 14px; font-size: 1.1rem; border: 1px solid #ccc; border-radius: 8px; }
+    .btn-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+    .btn-action { padding: 14px; font-size: 1.05rem; font-weight: bold; border: none; border-radius: 8px; color: white; cursor: pointer; text-align: center; }
+    .btn-scan { background-color: #009688; }
+    .btn-add { background-color: #4caf50; }
+    .btn-clear { background-color: #e53935; }
+    .btn-submit { background-color: #2e7d32; grid-column: span 2; padding: 16px; font-size: 1.25rem; }
+    .table-container { width: 100%; overflow-x: auto; border: 1px solid #ddd; background: white; border-radius: 8px; margin: 0; padding: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; white-space: nowrap; }
+    th, td { padding: 14px 12px; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background-color: #37474f; color: white; }
+    .col-batch { min-width: 140px; font-weight: bold; }
+    .col-size { min-width: 100px; }
+    .col-insp { min-width: 120px; }
+    #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+    #reader { width: 95%; max-width: 340px; height: 100px; border: 3px solid #009688; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
+    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; position: absolute; top: 0; left: 0; }
+    .scanner-tip { color: white; margin-top: 12px; font-weight: bold; font-size: 0.9rem; text-align: center; }
+    .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- หน้าเมนูหลัก -->
+  <div id="menu-page" class="menu-container">
+    <button class="btn-main btn-blue" onclick="switchPage('view-page')">ดูแถว</button>
+    <button class="btn-main btn-orange" onclick="switchPage('move-page')">ย้ายแถว</button>
+    <button class="btn-main btn-purple" onclick="switchPage('job-page')">Job</button>
+  </div>
+
+  <!-- หน้าดูแถว -->
+  <div id="view-page" class="page">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
+      <h2>หน้าดูแถว</h2>
+    </div>
+    <div class="form-group">
+      <label>Batch No:</label>
+      <input type="text" id="view-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
+    </div>
+    <div id="view-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
+    <div class="btn-group">
+      <button class="btn-action btn-scan" onclick="openScanner('view-batch')">📷 สแกน</button>
+      <button class="btn-action btn-add" onclick="addDataRow('view')">➕ เพิ่ม</button>
+      <button class="btn-action btn-clear" style="grid-column: span 2;" onclick="clearPageData('view')">🗑️ ล้างข้อมูล</button>
+    </div>
+    <div class="table-container">
+      <table id="view-table">
+        <thead>
+          <tr>
+            <th class="col-batch">BatchNo</th>
+            <th>Sloc</th>
+            <th class="col-size">Size</th>
+            <th>Weight</th>
+            <th class="col-insp">Inspection</th>
+            <th>Maker</th>
+            <th>Spec</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- หน้าย้ายแถว -->
+  <div id="move-page" class="page">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
+      <h2>หน้าย้ายแถว</h2>
+    </div>
+    <div class="form-group">
+      <label>Batch No:</label>
+      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
+    </div>
+    <div class="form-group">
+      <label>Sloc (สถานที่ย้ายไป):</label>
+      <input type="text" id="move-sloc" class="form-control" placeholder="ระบุ Sloc ปลายทาง">
+    </div>
+    <div id="move-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
+    <div class="btn-group">
+      <button class="btn-action btn-scan" onclick="openScanner('move-batch')">📷 สแกน</button>
+      <button class="btn-action btn-add" onclick="addDataRow('move')">➕ เพิ่ม</button>
+      <button class="btn-action btn-clear" style="grid-column: span 2;" onclick="clearPageData('move')">🗑️ ล้างข้อมูล</button>
+      <button class="btn-action btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
+    </div>
+    <div class="table-container">
+      <table id="move-table">
+        <thead>
+          <tr>
+            <th class="col-batch">BatchNo</th>
+            <th>Sloc</th>
+            <th class="col-size">Size</th>
+            <th>Weight</th>
+            <th class="col-insp">Inspection</th>
+            <th>Maker</th>
+            <th>Spec</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- หน้า Job -->
+  <div id="job-page" class="page" style="text-align: center; padding-top: 50px;">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
+      <h2>หน้า Job</h2>
+    </div>
+    <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
+  </div>
+
+  <div id="scanner-modal">
+    <div id="reader"></div>
+    <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
+    <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
+  </div>
+
+  <script>
+    // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางแทนคำด้านล่างนี้
+    const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
+
+    let html5QrcodeScanner = null;
+    let activeInputId = '';
+    
+    function switchPage(pId) {
+      document.getElementById('menu-page').style.display = 'none';
+      document.getElementById('view-page').style.display = 'none';
+      document.getElementById('move-page').style.display = 'none';
+      document.getElementById('job-page').style.display = 'none';
+      const tg = document.getElementById(pId);
+      if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
+    }
+    
+    function openScanner(inpId) {
+      activeInputId = inpId;
+      document.getElementById('scanner-modal').style.display = 'flex';
+      html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 30, qrbox: { width: 310, height: 65 }, aspectRatio: 3.0,
+        videoConstraints: { facingMode: "environment", aspectRatio: 3.0 }
+      });
+      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    }
+    
+    function closeScanner() {
+      const md = document.getElementById('scanner-modal');
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.clear().then(() => { md.style.display = 'none'; }).catch(() => { md.style.display = 'none'; });
+      } else { md.style.display = 'none'; }
+    }
+    
+    function onScanSuccess(txt) {
+      document.getElementById(activeInputId).value = txt;
+      closeScanner();
+      const md = activeInputId.split('-');
+      addDataRow(md[0]);
+    }
+    function onScanFailure(err) {}
+
+    function addDataRow(md) {
+      const bInp = document.getElementById(md + '-batch');
+      const bNo = bInp.value.trim();
+      const ld = document.getElementById(md + '-loading');
+      if (!bNo) { alert('กรุณากรอกข้อมูล Batch No'); return; }
+      ld.innerText = "⏳ กำลังค้นหาข้อมูล Excel...";
+      ld.style.display = 'block';
+      
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "search", batchNo: bNo })
+      })
+      .then(res => res.json())
+      .then(res => {
+        ld.style.display = 'none';
+        if(res.success) {
+          const tb = document.querySelector('#' + md + '-table tbody');
+          const r = document.createElement('tr');
+          let sl = res.sloc;
+          if (md === 'move') {
+            const curSl = document.getElementById('move-sloc').value.trim();
+            if (curSl) sl = curSl;
+          }
+          r.innerHTML = `<td>${res.batchNo}</td><td>${sl}</td><td>${res.size}</td><td>${res.weight}</td><td>${res.inspection}</td><td>${res.maker}</td><td>${res.spec}</td>`;
+          tb.appendChild(r);
+          bInp.value = '';
+        } else { alert(res.msg); }
+      })
+      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+    }
+    
+    function clearPageData(md) {
+      document.getElementById(md + '-batch').value = '';
+      const slInp = document.getElementById(md + '-sloc');
+      if(slInp) { slInp.value = ''; }
+      document.querySelector('#' + md + '-table tbody').innerHTML = '';
+    }
+    
+    function submitMoveData() {
+      const rows = document.querySelectorAll('#move-table tbody tr');
+      if(rows.length === 0) { alert('ไม่มีข้อมูลในตาราง'); return; }
+      let svData = [];
+      rows.forEach(r => {
+        let c = r.getElementsByTagName('td');
+        if(c.length >= 7) {
+          svData.push({
+            batchNo: c[0].textContent, sloc: c[1].textContent, size: c[2].textContent,
+            weight: c[3].textContent, inspection: c[4].textContent, maker: c[5].textContent, spec: c[6].textContent
+          });
+        }
+      });
+      
+      document.getElementById('move-loading').style.display = 'block';
+      
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "move", rowsData: svData })
+      })
+      .then(res => res.json())
+      .then(res => {
+        document.getElementById('move-loading').style.display = 'none';
+        if(res.success) { alert(res.msg); clearPageData('move'); } else { alert('ล้มเหลว: ' + res.msg); }
+      })
+      .catch(e => { document.getElementById('move-loading').style.display = 'none'; alert('เอเรอร์เซิร์ฟเวอร์: ' + e); });
+    }
+  </script>
+</body>
+</html>
