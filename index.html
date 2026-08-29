@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
-  <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, sans-serif; margin: 0; padding: 0; background-color: #f5f7fb; color: #333; }
@@ -25,7 +24,7 @@
     .btn-scan { background-color: #009688; }
     .btn-add { background-color: #4caf50; }
     
-    /* สไตล์สำหรับกลุ่มปุ่มใต้ตาราง */
+    /* สไตล์สำหรับกลุ่มปุ่มที่อยู่ใต้ตาราง */
     .btn-bottom-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; margin-bottom: 30px; }
     .btn-clear { background-color: #e53935; }
     .btn-submit { background-color: #2e7d32; }
@@ -38,9 +37,11 @@
     .col-batch { min-width: 140px; font-weight: bold; }
     .col-size { min-width: 100px; }
     .col-insp { min-width: 120px; }
+    
+    /* 🛠️ ปรับหน้าต่างโมดอลและตัวกรอบแถบวิดีโอสดแบบ Native ป้องกันจอดำ */
     #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-    #reader { width: 95%; max-width: 340px; height: 100px; border: 3px solid #009688; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
-    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; position: absolute; top: 0; left: 0; }
+    .video-wrap { width: 95%; max-width: 340px; height: 100px; border: 3px solid #009688; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
+    #video-preview { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
     .scanner-tip { color: white; margin-top: 12px; font-weight: bold; font-size: 0.9rem; text-align: center; }
     .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
@@ -142,17 +143,20 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
+  <!-- หน้าต่างเปิดกล้องถ่ายภาพแบบดึงสตรีมสด Native ป้องจอดำ -->
   <div id="scanner-modal">
-    <div id="reader"></div>
+    <div class="video-wrap">
+      <video id="video-preview" autoplay playsinline></video>
+    </div>
     <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
     <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
   </div>
 
   <script>
-    // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
+    // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางตรงช่องนี้
     const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
-    let html5QrcodeScanner = null;
+    let vStream = null;
     let activeInputId = '';
     
     function switchPage(pId) {
@@ -164,35 +168,34 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // 🛠️ แก้ไขคำสั่งเปิดกล้องให้ยืดหยุ่นขึ้น เพื่อแก้ปัญหากล้องหลังจอมืดดำในมือถือหลายเลนส์
+    // 🛠️ เปลี่ยนคำสั่งเปิดวิดีโอกล้องสดมาใช้ของระบบมือถือตรงๆ ข้ามบั๊กจอดำของ GitHub Pages
     function openScanner(inpId) {
       activeInputId = inpId;
       document.getElementById('scanner-modal').style.display = 'flex';
-      html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-        fps: 30, qrbox: { width: 310, height: 65 }, aspectRatio: 3.0,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        videoConstraints: { 
-          facingMode: "environment", // ใช้คำสั่งทั่วไปเพื่อให้เบราว์เซอร์เปิดกล้องหลักตัวหลังสำเร็จ
-          aspectRatio: 3.0
-        }
+      
+      const vEl = document.getElementById('video-preview');
+      
+      // สั่งเปิดระบบวิดีโอกล้องตัวหลักด้านหลังของโทรศัพท์มือถือโดยตรง
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+      })
+      .then(function(stream) {
+        vStream = stream;
+        vEl.srcObject = stream;
+        vEl.play(); // บังคับให้สตรีมภาพวิดีโอสดเด้งขึ้นมาในกรอบสี่เหลี่ยมทันที
+      })
+      .catch(function(err) {
+        alert("ไม่สามารถเปิดกล้องได้เนื่องจากติดการขอสิทธิ์: " + err.name + "\nคุณสามารถใช้วิธีพิมพ์รหัสลงกล่องข้อความแทนได้เลยครับ");
+        document.getElementById('scanner-modal').style.display = 'none';
       });
-      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     }
     
     function closeScanner() {
-      const md = document.getElementById('scanner-modal');
-      if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear().then(() => { md.style.display = 'none'; }).catch(() => { md.style.display = 'none'; });
-      } else { md.style.display = 'none'; }
+      if (vStream) {
+        vStream.getTracks().forEach(track => track.stop());
+      }
+      document.getElementById('scanner-modal').style.display = 'none';
     }
-    
-    function onScanSuccess(txt) {
-      document.getElementById(activeInputId).value = txt;
-      closeScanner();
-      const md = activeInputId.split('-');
-      addDataRow(md);
-    }
-    function onScanFailure(err) {}
 
     function addDataRow(md) {
       const bInp = document.getElementById(md + '-batch');
@@ -240,8 +243,8 @@
         let c = r.getElementsByTagName('td');
         if(c.length >= 7) {
           svData.push({
-            batchNo: c[0].textContent, sloc: c[1].textContent, size: c[2].textContent,
-            weight: c[3].textContent, inspection: c[4].textContent, maker: c[5].textContent, spec: c[6].textContent
+            batchNo: c.textContent, sloc: c.textContent, size: c.textContent,
+            weight: c.textContent, inspection: c.textContent, maker: c.textContent, spec: c.textContent
           });
         }
       });
