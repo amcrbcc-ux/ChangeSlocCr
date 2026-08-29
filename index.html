@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
+  <!-- นำเข้าไลบรารีสแกนเนอร์เวอร์ชันเสถียร -->
+  <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, sans-serif; margin: 0; padding: 0; background-color: #f5f7fb; color: #333; }
@@ -12,6 +14,7 @@
     .btn-blue { background-color: #1e88e5; }
     .btn-orange { background-color: #fb8c00; }
     .btn-purple { background-color: #8e24aa; }
+    
     .page { display: none; padding: 15px; }
     #menu-page { display: flex; }
     .header-bar { display: flex; align-items: center; margin-bottom: 15px; }
@@ -24,7 +27,7 @@
     .btn-scan { background-color: #009688; }
     .btn-add { background-color: #4caf50; }
     
-    /* สไตล์สำหรับกลุ่มปุ่มที่อยู่ใต้ตาราง */
+    /* สไตล์สำหรับกลุ่มปุ่มใต้ตาราง */
     .btn-bottom-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; margin-bottom: 30px; }
     .btn-clear { background-color: #e53935; }
     .btn-submit { background-color: #2e7d32; }
@@ -38,11 +41,11 @@
     .col-size { min-width: 100px; }
     .col-insp { min-width: 120px; }
     
-    /* 🛠️ ปรับหน้าต่างโมดอลและตัวกรอบแถบวิดีโอสดแบบ Native ป้องกันจอดำ */
+    /* สไตล์กล่องป็อปอัปแถบกล้องสแกนแนวนอนทรงแคบเตี้ย */
     #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-    .video-wrap { width: 95%; max-width: 340px; height: 100px; border: 3px solid #009688; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
-    #video-preview { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
-    .scanner-tip { color: white; margin-top: 12px; font-weight: bold; font-size: 0.9rem; text-align: center; }
+    #reader { width: 95%; max-width: 340px; height: 120px; border: 3px solid #009688; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
+    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
+    .scanner-tip { color: white; margin-top: 15px; font-weight: bold; font-size: 0.9rem; text-align: center; }
     .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
   </style>
@@ -87,7 +90,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <!-- 🟢 ย้ายปุ่มล้างข้อมูลมาไว้ใต้ตารางหน้าดูแถว -->
+    <!-- ปุ่มล้างข้อมูลย้ายอยู่ใต้ตารางหน้าดูแถว -->
     <div class="btn-bottom-group">
       <button class="btn-action btn-full-clear" onclick="clearPageData('view')">🗑️ ล้างข้อมูลทั้งหมด</button>
     </div>
@@ -127,7 +130,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <!-- 🟢 ย้ายปุ่มล้างข้อมูลและปุ่มย้ายแถวมาไว้ใต้ตารางหน้าย้ายแถว -->
+    <!-- ปุ่มล้างข้อมูลและปุ่มย้ายแถวย้ายอยู่ใต้ตารางหน้าย้ายแถว -->
     <div class="btn-bottom-group">
       <button class="btn-action btn-clear" onclick="clearPageData('move')">🗑️ ล้างข้อมูล</button>
       <button class="btn-action btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
@@ -143,11 +146,9 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
-  <!-- หน้าต่างเปิดกล้องถ่ายภาพแบบดึงสตรีมสด Native ป้องจอดำ -->
+  <!-- หน้าต่างเปิดกรอบกล้องสแกน -->
   <div id="scanner-modal">
-    <div class="video-wrap">
-      <video id="video-preview" autoplay playsinline></video>
-    </div>
+    <div id="reader"></div>
     <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
     <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
   </div>
@@ -156,7 +157,7 @@
     // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางตรงช่องนี้
     const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
-    let vStream = null;
+    let html5QrcodeScanner = null;
     let activeInputId = '';
     
     function switchPage(pId) {
@@ -168,135 +169,40 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // 🛠️ เปลี่ยนคำสั่งเปิดวิดีโอกล้องสดมาใช้ของระบบมือถือตรงๆ ข้ามบั๊กจอดำของ GitHub Pages
+    // ระบบเปิดกล้องและสั่งถอดรหัสบาร์โค้ดสตรีมสดอัตโนมัติ 100% บน GitHub
     function openScanner(inpId) {
       activeInputId = inpId;
       document.getElementById('scanner-modal').style.display = 'flex';
       
-      const vEl = document.getElementById('video-preview');
-      
-      // สั่งเปิดระบบวิดีโอกล้องตัวหลักด้านหลังของโทรศัพท์มือถือโดยตรง
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
-      })
-      .then(function(stream) {
-        vStream = stream;
-        vEl.srcObject = stream;
-        vEl.play(); // บังคับให้สตรีมภาพวิดีโอสดเด้งขึ้นมาในกรอบสี่เหลี่ยมทันที
-      })
-      .catch(function(err) {
-        alert("ไม่สามารถเปิดกล้องได้เนื่องจากติดการขอสิทธิ์: " + err.name + "\nคุณสามารถใช้วิธีพิมพ์รหัสลงกล่องข้อความแทนได้เลยครับ");
-        document.getElementById('scanner-modal').style.display = 'none';
+      // เลือกผูกกล้องแบบดึงวิดีโอเข้าชุดวิเคราะห์พิกเซลแถบตรง 3:1 ไม่หน่วงและไม่มืดดำ
+      html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 30, 
+        qrbox: { width: 310, height: 65 }, // บีบเส้นสแกนให้แบนพอดีแท่งบาร์โค้ดสินค้า
+        aspectRatio: 2.5,
+        videoConstraints: { facingMode: "environment" } // เรียกใช้เลนส์หลังมือถือโดยตรง
       });
-    }
-  <!-- หน้า Job -->
-  <div id="job-page" class="page" style="text-align: center; padding-top: 50px;">
-    <div class="header-bar">
-      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
-      <h2>หน้า Job</h2>
-    </div>
-    <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
-  </div>
-
-  <!-- หน้าต่างเปิดกล้องถ่ายภาพแบบดึงสตรีมสด -->
-  <div id="scanner-modal">
-    <div class="video-wrap">
-      <video id="video-preview" autoplay playsinline></video>
-    </div>
-    <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
-    <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
-  </div>
-
-  <script>
-    // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
-
-    let vStream = null;
-    let scanInterval = null; // ตัวควบคุมลูปแอบถ่ายภาพเพื่อแกะรหัส
-    let activeInputId = '';
-    let isScanningActive = false; // ตัวบล็อกไม่ให้ระบบสแกนซ้ำซ้อนตอนได้ค่าแล้ว
-    
-    function switchPage(pId) {
-      document.getElementById('menu-page').style.display = 'none';
-      document.getElementById('view-page').style.display = 'none';
-      document.getElementById('move-page').style.display = 'none';
-      document.getElementById('job-page').style.display = 'none';
-      const tg = document.getElementById(pId);
-      if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
+      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     }
     
-    // เปิดกล้องสดและเริ่มระบบลูปวิเคราะห์รหัสบาร์โค้ดอัตโนมัติ
-    function openScanner(inpId) {
-      activeInputId = inpId;
-      isScanningActive = true;
-      document.getElementById('scanner-modal').style.display = 'flex';
-      
-      const vEl = document.getElementById('video-preview');
-      
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-      })
-      .then(function(stream) {
-        vStream = stream;
-        vEl.srcObject = stream;
-        vEl.play();
-        
-        // 🟢 เริ่มระบบแอบวิเคราะห์พิกเซลภาพบาร์โค้ดอัตโนมัติทุกๆ 200 มิลลิวินาที
-        startBarcodeDecoder(vEl);
-      })
-      .catch(function(err) {
-        alert("ไม่สามารถเปิดกล้องได้: " + err.name);
-        document.getElementById('scanner-modal').style.display = 'none';
-      });
-    }
-
-    // ฟังก์ชันสั่งให้คลังรหัส Html5Qrcode เจาะพิกเซลวิดีโอไปวิเคราะห์อัตโนมัติ
-    function startBarcodeDecoder(videoElement) {
-      // สร้างแคนวาสจำลองในหน่วยความจำเพื่อคอยสแนปภาพจากวิดีโอแนวนอน
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const barcodeDetector = new Html5QrcodeSupportedFormats(); 
-      const html5QrCode = new Html5Qrcode("video-preview");
-
-      // ตรวจหาคลังรหัสและทำการวนลูปแกะเส้นบาร์โค้ด
-      scanInterval = setInterval(() => {
-        if (!isScanningActive || videoElement.paused || videoElement.ended) return;
-
-        // วิ่งไปแกะรหัสจากพิกเซลภาพผ่านฟังก์ชันภายในเครื่องตัวเอง
-        Html5QrcodeScanner.prototype.getBarcodeDetectorSupportedFormats()
-        
-        // ใช้กลไกถอดรหัสของตัวไลบรารีสแกนเนอร์โดยตรง
-        const h5Qrcode = new Html5Qrcode("video-preview", { verbose: false });
-        
-        // ทางแก้ที่ง่าย แม่นยำ และเร็วสุดบน GitHub: ให้สแกนผ่านการประมวลผลตัวอ่าน
-        const tempReader = document.getElementById('reader');
-        
-        // ตัวสแกนจะสั่งจำลองเจาะหาเส้นตรงของแท่งบาร์โค้ดทันทีเมื่อทาบลงล็อก
-        // หากสแกนติด จะเรียกใช้ฟังก์ชันจัดการรหัสสำเร็จด้านล่างครับ
-      }, 250);
-    }
-    
-    // ฟังก์ชันปิดกล้องและล้างลูปสั่งงาน
     function closeScanner() {
-      isScanningActive = false;
-      if (scanInterval) clearInterval(scanInterval);
-      if (vStream) {
-        vStream.getTracks().forEach(track => track.stop());
-      }
-      document.getElementById('scanner-modal').style.display = 'none';
+      const md = document.getElementById('scanner-modal');
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.clear()
+          .then(() => { md.style.display = 'none'; })
+          .catch(() => { md.style.display = 'none'; });
+      } else { md.style.display = 'none'; }
     }
     
-    // ฟังก์ชันทำงานเมื่อสแกนเจอข้อความสำเร็จ
-    function handleScanSuccess(scannedText) {
-      if (!isScanningActive) return;
-      isScanningActive = false; // บล็อกการทำงานชั่วคราว ป้องกันการสแกนเบิ้ล
-      
-      document.getElementById(activeInputId).value = scannedText;
+    // เมื่อเลนส์สแกนติดตัวอักษรสำเร็จ
+    function onScanSuccess(txt) {
+      document.getElementById(activeInputId).value = txt;
       closeScanner();
       
+      // ปลุกฟังก์ชันกดปุ่ม "+" ดึงฐานข้อมูลสินค้ามาลงตารางอัตโนมัติทันที
       const md = activeInputId.split('-');
-      addDataRow(md);
+      addDataRow(md[0]);
     }
+    function onScanFailure(err) {}
 
     function addDataRow(md) {
       const bInp = document.getElementById(md + '-batch');
@@ -344,8 +250,8 @@
         let c = r.getElementsByTagName('td');
         if(c.length >= 7) {
           svData.push({
-            batchNo: c.textContent, sloc: c.textContent, size: c.textContent,
-            weight: c.textContent, inspection: c.textContent, maker: c.textContent, spec: c.textContent
+            batchNo: c[0].textContent, sloc: c[1].textContent, size: c[2].textContent,
+            weight: c[3].textContent, inspection: c[4].textContent, maker: c[5].textContent, spec: c[6].textContent
           });
         }
       });
@@ -366,4 +272,3 @@
   </script>
 </body>
 </html>
-
