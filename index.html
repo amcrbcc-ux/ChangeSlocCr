@@ -24,8 +24,13 @@
     .btn-action { padding: 14px; font-size: 1.05rem; font-weight: bold; border: none; border-radius: 8px; color: white; cursor: pointer; text-align: center; }
     .btn-scan { background-color: #009688; }
     .btn-add { background-color: #4caf50; }
+    
+    /* สไตล์สำหรับกลุ่มปุ่มใต้ตาราง */
+    .btn-bottom-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; margin-bottom: 30px; }
     .btn-clear { background-color: #e53935; }
-    .btn-submit { background-color: #2e7d32; grid-column: span 2; padding: 16px; font-size: 1.25rem; }
+    .btn-submit { background-color: #2e7d32; }
+    .btn-full-clear { background-color: #e53935; grid-column: span 2; padding: 16px; font-size: 1.2rem; }
+    
     .table-container { width: 100%; overflow-x: auto; border: 1px solid #ddd; background: white; border-radius: 8px; margin: 0; padding: 0; }
     table { width: 100%; border-collapse: collapse; font-size: 0.95rem; white-space: nowrap; }
     th, td { padding: 14px 12px; border-bottom: 1px solid #ddd; text-align: left; }
@@ -64,7 +69,6 @@
     <div class="btn-group">
       <button class="btn-action btn-scan" onclick="openScanner('view-batch')">📷 สแกน</button>
       <button class="btn-action btn-add" onclick="addDataRow('view')">➕ เพิ่ม</button>
-      <button class="btn-action btn-clear" style="grid-column: span 2;" onclick="clearPageData('view')">🗑️ ล้างข้อมูล</button>
     </div>
     <div class="table-container">
       <table id="view-table">
@@ -81,6 +85,10 @@
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+    <!-- 🟢 ย้ายปุ่มล้างข้อมูลมาไว้ใต้ตารางหน้าดูแถว -->
+    <div class="btn-bottom-group">
+      <button class="btn-action btn-full-clear" onclick="clearPageData('view')">🗑️ ล้างข้อมูลทั้งหมด</button>
     </div>
   </div>
   <!-- หน้าย้ายแถว -->
@@ -101,8 +109,6 @@
     <div class="btn-group">
       <button class="btn-action btn-scan" onclick="openScanner('move-batch')">📷 สแกน</button>
       <button class="btn-action btn-add" onclick="addDataRow('move')">➕ เพิ่ม</button>
-      <button class="btn-action btn-clear" style="grid-column: span 2;" onclick="clearPageData('move')">🗑️ ล้างข้อมูล</button>
-      <button class="btn-action btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
     </div>
     <div class="table-container">
       <table id="move-table">
@@ -119,6 +125,11 @@
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+    <!-- 🟢 ย้ายปุ่มล้างข้อมูลและปุ่มย้ายแถวมาไว้ใต้ตารางหน้าย้ายแถว -->
+    <div class="btn-bottom-group">
+      <button class="btn-action btn-clear" onclick="clearPageData('move')">🗑️ ล้างข้อมูล</button>
+      <button class="btn-action btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
     </div>
   </div>
 
@@ -138,7 +149,7 @@
   </div>
 
   <script>
-    // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางแทนคำด้านล่างนี้
+    // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
     const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
     let html5QrcodeScanner = null;
@@ -153,12 +164,17 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
+    // 🛠️ แก้ไขคำสั่งเปิดกล้องให้ยืดหยุ่นขึ้น เพื่อแก้ปัญหากล้องหลังจอมืดดำในมือถือหลายเลนส์
     function openScanner(inpId) {
       activeInputId = inpId;
       document.getElementById('scanner-modal').style.display = 'flex';
       html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
         fps: 30, qrbox: { width: 310, height: 65 }, aspectRatio: 3.0,
-        videoConstraints: { facingMode: "environment", aspectRatio: 3.0 }
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        videoConstraints: { 
+          facingMode: "environment", // ใช้คำสั่งทั่วไปเพื่อให้เบราว์เซอร์เปิดกล้องหลักตัวหลังสำเร็จ
+          aspectRatio: 3.0
+        }
       });
       html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     }
@@ -174,7 +190,7 @@
       document.getElementById(activeInputId).value = txt;
       closeScanner();
       const md = activeInputId.split('-');
-      addDataRow(md[0]);
+      addDataRow(md);
     }
     function onScanFailure(err) {}
 
