@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
+  <!-- นำเข้าคลังรหัสประมวลผลบาร์โค้ดสากล -->
   <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; }
@@ -38,10 +39,10 @@
     .col-size { min-width: 100px; }
     .col-insp { min-width: 120px; }
     
-    /* 🛠️ ปรับแก้กรอบวิดีโอแนวราบใหม่ ปลุกกล้องวิดีโอระบบภายในเครื่อง */
+    /* 🛠️ บังคับให้หน้าต่างสแกนบีบเฟรมวิดีโอด้านในให้เตี้ยและกว้างเป็นแถบแนวราบ */
     #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-    .video-wrap { width: 95%; max-width: 340px; height: 110px; border: 3px solid #009688; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
-    #video-preview { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
+    #reader { width: 95%; max-width: 340px; height: 130px; border: 3px solid #009688; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
+    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
     .scanner-tip { color: white; margin-top: 15px; font-weight: bold; font-size: 0.9rem; text-align: center; }
     .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
@@ -141,11 +142,9 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
-  <!-- ปรับกรอบวิดีโอใหม่ครอบรับ Native Camera -->
+  <!-- กล่องเปิดกรอบสแกนบาร์โค้ด -->
   <div id="scanner-modal">
-    <div class="video-wrap">
-      <video id="video-preview" autoplay playsinline></video>
-    </div>
+    <div id="reader"></div>
     <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
     <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
   </div>
@@ -154,7 +153,6 @@
     // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางตรงช่องนี้
     const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
-    let vStream = null;
     let html5QrCode = null;
     let activeInputId = '';
     
@@ -167,38 +165,25 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // 🛠️ ปรับฟังก์ชันเปิดกล้องใหม่: ใช้ระบบ Native ของมือถือยิงภาพสดเข้าตัวประมวลผลตรงๆ แก้อาการจอดำถาวร
+    // 🛠️ แก้ไขไวยากรณ์ตัวถอดรหัสภาพ: ผูกระบบสแกนเข้ากับกล่องสี่เหลี่ยมผืนผ้าภายนอกอย่างถูกต้องเพื่อให้แถบเล็งทำงาน
     function openScanner(inpId) {
       activeInputId = inpId;
       document.getElementById('scanner-modal').style.display = 'flex';
-      const vEl = document.getElementById('video-preview');
       
-      // ดึงสตรีมกล้องหลักตัวหลังแบบเสถียร ไม่เจาะจงเลขเลนส์ให้เอเรอร์
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-      })
-      .then(function(stream) {
-        vStream = stream;
-        vEl.srcObject = stream;
-        vEl.setAttribute("playsinline", true);
-        vEl.play();
-        
-        // ผูกไลบรารีสแกนเข้ากับภาพสตรีมสดที่กำลังโชว์ทันที
-        setTimeout(() => {
-          html5QrCode = new Html5Qrcode("video-preview");
-          html5QrCode.start(
-            { facingMode: "environment" },
-            { fps: 25, qrbox: { width: 310, height: 65 }, aspectRatio: 2.5 },
-            onScanSuccess,
-            onScanFailure
-          ).catch(e => {
-            // หากไลบรารีสแกนภายนอกพัง แต่อุปกรณ์เปิดกล้องได้ จะใช้วิธีรันแชร์สิทธิ์ต่อ
-            console.log("กล้องระบบเว็บหลักรันต่อเนื่องอัตโนมัติ");
-          });
-        }, 300);
-      })
-      .catch(function(err) {
-        alert("เบราว์เซอร์ปฏิเสธกล้อง กรุณาเปิดแอปผ่าน Google Chrome หรือ Safari ตรงๆ ครับ");
+      // บังคับสลับเรียกคลังรหัสในโหมดยิงสแกนสดออฟไลน์ร่วมกับกรอบแนวราบ 3:1
+      html5QrCode = new Html5Qrcode("reader");
+      
+      html5QrCode.start(
+        { facingMode: "environment" }, // บังคับดึงเลนส์กล้องหลักตัวหลังของโทรศัพท์
+        { 
+          fps: 30, 
+          qrbox: { width: 310, height: 65 }, // ขนาดกล่องเล็งเป้าแถบยาวแนวราบพอดีบาร์โค้ด
+          aspectRatio: 2.5
+        },
+        onScanSuccess,
+        onScanFailure
+      ).catch(err => {
+        alert("ระบบเปิดกล้องล้มเหลว: " + err + "\nแนะนำให้เปิดผ่าน Google Chrome/Safari โดยตรงครับ");
         document.getElementById('scanner-modal').style.display = 'none';
       });
     }
@@ -207,11 +192,9 @@
       const md = document.getElementById('scanner-modal');
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(() => {
-          if (vStream) vStream.getTracks().forEach(t => t.stop());
           md.style.display = 'none';
         }).catch(() => { md.style.display = 'none'; });
       } else {
-        if (vStream) vStream.getTracks().forEach(t => t.stop());
         md.style.display = 'none';
       }
     }
