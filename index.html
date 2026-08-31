@@ -161,9 +161,9 @@
     <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
   </div>
 
-  <script>
+   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzZOQ6xqdQU4R4lp1ZZVu1aE9joAx_tDnh1eOjzkQ7JPgWjNbAR91jLqPNK4hLSgdBY/exec";
+    const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
     let html5QrCode = null;
     let activeInputId = '';
@@ -177,36 +177,20 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // 🛠️ ซ่อมคำสั่งดึงเลนส์กล้องหลังตรงๆ ปลดล็อกปัญหากล้องจอดำบน GitHub Pages
     function openScanner(inpId) {
       activeInputId = inpId;
       document.getElementById('scanner-modal').style.display = 'flex';
-      
-      // ล้างระบบกล้องเดิมที่อาจค้างอยู่ออกก่อนเพื่อไม่ให้แย่งสิทธิ์เลนส์กัน
       if (html5QrCode) { html5QrCode.clear(); }
-      
       html5QrCode = new Html5Qrcode("reader");
-      
-      // บังคับขอเปิดสิทธิ์เลนส์กล้องหลังด้วยสัดส่วนแถบแนวนอนบีบพิกเซลคมชัด
       html5QrCode.start(
-        { facingMode: "environment" }, // ระบุเจาะจงกล้องหลักด้านหลังตัวเครื่องมือถือ
-        { 
-          fps: 25, 
-          qrbox: { width: 310, height: 60 }, // พิกเซลเจาะแกะเส้นบาร์โค้ดสินค้าแนวราบ
-          aspectRatio: 3.0
-        },
+        { facingMode: "environment" },
+        { fps: 25, qrbox: { width: 310, height: 60 }, aspectRatio: 3.0 },
         onScanSuccess,
         onScanFailure
       ).catch(err => {
-        console.error("กล้องขัดข้อง: ", err);
-        // หากมือถือบางรุ่นไม่รองรับการเจาะจง ให้สลับระบบดึงแบบอัตโนมัติสำรองทันที
-        html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 20 },
-          onScanSuccess,
-          onScanFailure
-        ).catch(e => {
-          alert("ไม่สามารถเข้าถึงสิทธิ์กล้องหลังได้ กรุณาเปิดลิงก์ผ่านหน้าเว็บ Google Chrome หรือ Safari โดยตรงครับ");
+        html5QrCode.start({ facingMode: "environment" }, { fps: 20 }, onScanSuccess, onScanFailure)
+        .catch(e => {
+          alert("กรุณาเปิดลิงก์ผ่านหน้าเว็บ Google Chrome หรือ Safari โดยตรงครับ");
           document.getElementById('scanner-modal').style.display = 'none';
         });
       });
@@ -215,24 +199,17 @@
     function closeScanner() {
       const md = document.getElementById('scanner-modal');
       if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-          md.style.display = 'none';
-        }).catch(() => { md.style.display = 'none'; });
-      } else {
-        md.style.display = 'none';
-      }
+        html5QrCode.stop().then(() => { md.style.display = 'none'; }).catch(() => { md.style.display = 'none'; });
+      } else { md.style.display = 'none'; }
     }
     
-    // เมื่อเลนส์กล้องหลังสแกนแท่งบาร์โค้ดติดสำเร็จในเครื่อง
     function onScanSuccess(txt) {
       document.getElementById(activeInputId).value = txt;
       closeScanner();
-      
-      // สั่งทำงานต่อเนื่องวิ่งไปค้นฐานข้อมูล Excel ทันทีโดยที่หน้างานไม่ต้องเอานิ้วกดปุ่มเพิ่ม
       const md = activeInputId.split('-');
-      addDataRow(md[0]);
+      addDataRow(md);
     }
-    function onScanFailure(err) { /* ปล่อยว่างเพื่อรอจับโฟกัสแท่งบาร์โค้ดในเฟรมภาพถัดไป */ }
+    function onScanFailure(err) {}
 
     function addDataRow(md) {
       const bInp = document.getElementById(md + '-batch');
@@ -272,21 +249,23 @@
       document.querySelector('#' + md + '-table tbody').innerHTML = '';
     }
     
+    // 🛠️ แก้ไขฟังก์ชันรวบรวมข้อมูลแยกเซลล์แบบระบุช่องดัชนีทีละคอลัมน์ ป้องกันการบันทึก Null ค้าง
     function submitMoveData() {
       const rows = document.querySelectorAll('#move-table tbody tr');
-      if(rows.length === 0) { alert('ไม่มีข้อมูลในตาราง'); return; }
+      if(rows.length === 0) { alert('ไม่มีข้อมูลในตารางให้บันทึก'); return; }
+      
       let svData = [];
       rows.forEach(r => {
         let c = r.getElementsByTagName('td');
         if(c.length >= 7) {
           svData.push({
-            batchNo: c[0].textContent, 
-            sloc: c[1].textContent, 
-            size: c[2].textContent,
-            weight: c[3].textContent, 
-            inspection: c[4].textContent, 
-            maker: c[5].textContent, 
-            spec: c[6].textContent
+            batchNo: c[0].textContent.trim(), 
+            sloc: c[1].textContent.trim(), 
+            size: c[2].textContent.trim(),
+            weight: c[3].textContent.trim(), 
+            inspection: c[4].textContent.trim(), 
+            maker: c[5].textContent.trim(), 
+            spec: c[6].textContent.trim()
           });
         }
       });
