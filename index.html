@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
   <!-- นำเข้าคลังรหัสสแกนบาร์โค้ดเวอร์ชันเสถียรดึงข้อมูลไว -->
-  <script src="https://jsdelivr.net"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, sans-serif; margin: 0; padding: 0; background-color: #f5f7fb; color: #333; }
@@ -230,7 +230,7 @@
       
       // สั่งทำงานต่อเนื่องวิ่งไปค้นฐานข้อมูล Excel ทันทีโดยที่หน้างานไม่ต้องเอานิ้วกดปุ่มเพิ่ม
       const md = activeInputId.split('-');
-      addDataRow(md);
+      addDataRow(md[0]);
     }
     function onScanFailure(err) { /* ปล่อยว่างเพื่อรอจับโฟกัสแท่งบาร์โค้ดในเฟรมภาพถัดไป */ }
 
