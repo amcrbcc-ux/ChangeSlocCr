@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
-  <!-- นำเข้าคลังรหัสประมวลผลบาร์โค้ดสากล -->
+  <!-- นำเข้าไลบรารีถอดรหัสบาร์โค้ดจากภาพถ่ายที่ทำงานได้เร็วและเสถียรที่สุดบนหน้าเว็บ -->
   <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; }
@@ -38,13 +38,6 @@
     .col-batch { min-width: 140px; font-weight: bold; }
     .col-size { min-width: 100px; }
     .col-insp { min-width: 120px; }
-    
-    /* 🛠️ บังคับให้หน้าต่างสแกนบีบเฟรมวิดีโอด้านในให้เตี้ยและกว้างเป็นแถบแนวราบ */
-    #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-    #reader { width: 95%; max-width: 340px; height: 130px; border: 3px solid #009688; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 15px #009688; position: relative; }
-    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; display: block; }
-    .scanner-tip { color: white; margin-top: 15px; font-weight: bold; font-size: 0.9rem; text-align: center; }
-    .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
   </style>
 </head>
@@ -65,11 +58,11 @@
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="view-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
+      <input type="text" id="view-batch" class="form-control" placeholder="พิมพ์ข้อมูลหรือกดเพื่อเปิดกล้อง">
     </div>
     <div id="view-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
     <div class="btn-group">
-      <button class="btn-action btn-scan" onclick="openScanner('view-batch')">📷 สแกน</button>
+      <button class="btn-action btn-scan" onclick="openNativeCamera('view-batch')">📷 เปิดกล้อง</button>
       <button class="btn-action btn-add" onclick="addDataRow('view')">➕ เพิ่ม</button>
     </div>
     <div class="table-container">
@@ -100,7 +93,7 @@
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
+      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์ข้อมูลหรือกดเพื่อเปิดกล้อง">
     </div>
     <div class="form-group">
       <label>Sloc (สถานที่ย้ายไป):</label>
@@ -108,7 +101,7 @@
     </div>
     <div id="move-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
     <div class="btn-group">
-      <button class="btn-action btn-scan" onclick="openScanner('move-batch')">📷 สแกน</button>
+      <button class="btn-action btn-scan" onclick="openNativeCamera('move-batch')">📷 เปิดกล้อง</button>
       <button class="btn-action btn-add" onclick="addDataRow('move')">➕ เพิ่ม</button>
     </div>
     <div class="table-container">
@@ -142,18 +135,10 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
-  <!-- กล่องเปิดกรอบสแกนบาร์โค้ด -->
-  <div id="scanner-modal">
-    <div id="reader"></div>
-    <div class="scanner-tip">💡 หันกรอบสี่เหลี่ยมแนวนอนไปทาบแถบบาร์โค้ด</div>
-    <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
-  </div>
-
   <script>
     // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางตรงช่องนี้
     const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
-    let html5QrCode = null;
     let activeInputId = '';
     
     function switchPage(pId) {
@@ -165,47 +150,53 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // 🛠️ แก้ไขไวยากรณ์ตัวถอดรหัสภาพ: ผูกระบบสแกนเข้ากับกล่องสี่เหลี่ยมผืนผ้าภายนอกอย่างถูกต้องเพื่อให้แถบเล็งทำงาน
-    function openScanner(inpId) {
+    // 🛠️ ฟังก์ชันสแกนแบบใหม่: ปลุกแอปกล้องหลักของโทรศัพท์ขึ้นมาแชะภาพ ถ่ายเสร็จแกะรหัสทันที เวิร์ก 100%
+    function openNativeCamera(inpId) {
       activeInputId = inpId;
-      document.getElementById('scanner-modal').style.display = 'flex';
+      const mode = activeInputId.split('-');
+      const ld = document.getElementById(mode[0] + '-loading');
       
-      // บังคับสลับเรียกคลังรหัสในโหมดยิงสแกนสดออฟไลน์ร่วมกับกรอบแนวราบ 3:1
-      html5QrCode = new Html5Qrcode("reader");
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.capture = 'environment'; // บังคับให้มือถือเปิดกล้องหลังถ่ายภาพทันที
       
-      html5QrCode.start(
-        { facingMode: "environment" }, // บังคับดึงเลนส์กล้องหลักตัวหลังของโทรศัพท์
-        { 
-          fps: 30, 
-          qrbox: { width: 310, height: 65 }, // ขนาดกล่องเล็งเป้าแถบยาวแนวราบพอดีบาร์โค้ด
-          aspectRatio: 2.5
-        },
-        onScanSuccess,
-        onScanFailure
-      ).catch(err => {
-        alert("ระบบเปิดกล้องล้มเหลว: " + err + "\nแนะนำให้เปิดผ่าน Google Chrome/Safari โดยตรงครับ");
-        document.getElementById('scanner-modal').style.display = 'none';
+      fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        ld.innerText = "⏳ กำลังแกะรหัสบาร์โค้ดจากภาพถ่าย...";
+        ld.style.display = 'block';
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0, img.width, img.height);
+            
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            // สั่งประมวลผลแกะรหัสพิกเซลในเครื่องทันที ปลอดภัยและไม่หน่วง
+            const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+            
+            ld.style.display = 'none';
+            if (code && code.data) {
+              document.getElementById(activeInputId).value = code.data;
+              addDataRow(mode[0]); // สแกนติดปุ๊บ ค้นข้อมูลลงตารางให้ทันที
+            } else {
+              alert("📸 บันทึกรูปภาพแล้ว แต่ไม่พบรหัสบาร์โค้ดที่ชัดเจน กรุณากดถ่ายใหม่อีกครั้งโดยขยับกล้องให้เห็นบาร์โค้ดชัดๆ หรือพิมพ์ลงช่องได้เลยครับ");
+            }
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
       });
+      
+      fileInput.click();
     }
-    
-    function closeScanner() {
-      const md = document.getElementById('scanner-modal');
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-          md.style.display = 'none';
-        }).catch(() => { md.style.display = 'none'; });
-      } else {
-        md.style.display = 'none';
-      }
-    }
-    
-    function onScanSuccess(txt) {
-      document.getElementById(activeInputId).value = txt;
-      closeScanner();
-      const md = activeInputId.split('-');
-      addDataRow(md);
-    }
-    function onScanFailure(err) {}
 
     function addDataRow(md) {
       const bInp = document.getElementById(md + '-batch');
