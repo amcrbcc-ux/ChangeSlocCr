@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>ระบบคอยล์</title>
-  <!-- นำเข้าไลบรารีถอดรหัสบาร์โค้ดจากภาพถ่ายที่ทำงานได้เร็วและเสถียรที่สุดบนหน้าเว็บ -->
+  <!-- นำเข้าคลังรหัสสแกนบาร์โค้ดเวอร์ชันเสถียรดึงข้อมูลไว -->
   <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; }
@@ -38,6 +38,23 @@
     .col-batch { min-width: 140px; font-weight: bold; }
     .col-size { min-width: 100px; }
     .col-insp { min-width: 120px; }
+    
+    /* 🛠️ ส่วนปรับกรอบกล้องให้แบนเตี้ยแนวราบ และสร้างเส้นเลเซอร์สีแดงวิ่งสแกน */
+    #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+    .scanner-wrapper { width: 95%; max-width: 340px; position: relative; border: 3px solid #00bcbc; border-radius: 12px; overflow: hidden; box-shadow: 0 0 15px #00bcbc; }
+    #reader { width: 100%; height: 100px; background: #000; } /* บังคับขนาดช่องส่องกล้องให้เตี้ยลงตามเงื่อนไข */
+    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
+    
+    /* 🟢 แอนิเมชันสร้างเส้นเลเซอร์สแกนอัตโนมัติวิ่งขึ้นลงในช่องกล้อง */
+    .laser-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background-color: #ff3d00; box-shadow: 0 0 8px #ff3d00; animation: laserMove 2s infinite ease-in-out; z-index: 10; pointer-events: none; }
+    @keyframes laserMove { 
+      0% { top: 5%; }
+      50% { top: 90%; }
+      100% { top: 5%; }
+    }
+    
+    .scanner-tip { color: white; margin-top: 15px; font-weight: bold; font-size: 0.95rem; text-align: center; }
+    .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
   </style>
 </head>
@@ -58,11 +75,11 @@
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="view-batch" class="form-control" placeholder="พิมพ์ข้อมูลหรือกดเพื่อเปิดกล้อง">
+      <input type="text" id="view-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
     </div>
     <div id="view-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
     <div class="btn-group">
-      <button class="btn-action btn-scan" onclick="openNativeCamera('view-batch')">📷 เปิดกล้อง</button>
+      <button class="btn-action btn-scan" onclick="openScanner('view-batch')">📷 สแกน</button>
       <button class="btn-action btn-add" onclick="addDataRow('view')">➕ เพิ่ม</button>
     </div>
     <div class="table-container">
@@ -93,7 +110,7 @@
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์ข้อมูลหรือกดเพื่อเปิดกล้อง">
+      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
     </div>
     <div class="form-group">
       <label>Sloc (สถานที่ย้ายไป):</label>
@@ -101,7 +118,7 @@
     </div>
     <div id="move-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
     <div class="btn-group">
-      <button class="btn-action btn-scan" onclick="openNativeCamera('move-batch')">📷 เปิดกล้อง</button>
+      <button class="btn-action btn-scan" onclick="openScanner('move-batch')">📷 สแกน</button>
       <button class="btn-action btn-add" onclick="addDataRow('move')">➕ เพิ่ม</button>
     </div>
     <div class="table-container">
@@ -135,10 +152,21 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
+  <!-- หน้าต่างเปิดแถบกล้องพร้อมเลเซอร์สแกนอัตโนมัติ -->
+  <div id="scanner-modal">
+    <div class="scanner-wrapper">
+      <div class="laser-line"></div> <!-- เส้นเลเซอร์วิ่งสีแดง -->
+      <div id="reader"></div>
+    </div>
+    <div class="scanner-tip">💡 ทาบกรอบสี่เหลี่ยมแนวราบให้ขนานกับแถบบาร์โค้ด</div>
+    <button class="btn-close-scan" onclick="closeScanner()">❌ ปิดหน้าต่างสแกน</button>
+  </div>
+
   <script>
-    // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางตรงช่องนี้
+    // 🔴 คัดลอก URL หลังบ้านจาก Google Apps Script (ลงท้ายด้วย /exec) มาวางแทนคำในเครื่องหมายคำพูดด้านล่าง
     const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
+    let html5QrCode = null;
     let activeInputId = '';
     
     function switchPage(pId) {
@@ -150,53 +178,51 @@
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
     
-    // 🛠️ ฟังก์ชันสแกนแบบใหม่: ปลุกแอปกล้องหลักของโทรศัพท์ขึ้นมาแชะภาพ ถ่ายเสร็จแกะรหัสทันที เวิร์ก 100%
-    function openNativeCamera(inpId) {
+    // 🛠️ ฟังก์ชันสั่งรันเปิดกล้องในล็อกแนวราบ พร้อมระบุคำสั่งควบคุมผ่านระบบวิเคราะห์ข้อมูลภายในเครื่อง (แก้ปัญหากล้องไม่สแกน)
+    function openScanner(inpId) {
       activeInputId = inpId;
-      const mode = activeInputId.split('-');
-      const ld = document.getElementById(mode[0] + '-loading');
+      document.getElementById('scanner-modal').style.display = 'flex';
       
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-      fileInput.capture = 'environment'; // บังคับให้มือถือเปิดกล้องหลังถ่ายภาพทันที
+      // ปลุกคลังรหัสสแกนโดยผูกเข้ากับ ID คอนเทนเนอร์หุ้มกรอบอย่างถูกต้อง
+      html5QrCode = new Html5Qrcode("reader");
       
-      fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        ld.innerText = "⏳ กำลังแกะรหัสบาร์โค้ดจากภาพถ่าย...";
-        ld.style.display = 'block';
-        
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          const img = new Image();
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0, img.width, img.height);
-            
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            // สั่งประมวลผลแกะรหัสพิกเซลในเครื่องทันที ปลอดภัยและไม่หน่วง
-            const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
-            
-            ld.style.display = 'none';
-            if (code && code.data) {
-              document.getElementById(activeInputId).value = code.data;
-              addDataRow(mode[0]); // สแกนติดปุ๊บ ค้นข้อมูลลงตารางให้ทันที
-            } else {
-              alert("📸 บันทึกรูปภาพแล้ว แต่ไม่พบรหัสบาร์โค้ดที่ชัดเจน กรุณากดถ่ายใหม่อีกครั้งโดยขยับกล้องให้เห็นบาร์โค้ดชัดๆ หรือพิมพ์ลงช่องได้เลยครับ");
-            }
-          };
-          img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
+      // สั่งคำสั่งขอสิทธิ์และเริ่มระบบลูปวิเคราะห์เส้นแถบบาร์โค้ดสตรีมวิดีโอสดทันที
+      html5QrCode.start(
+        { facingMode: "environment" }, // ดึงภาพจากตัวกล้องหลักด้านหลังของสมาร์ทโฟน
+        { 
+          fps: 25, 
+          qrbox: { width: 310, height: 60 }, // บีบขนาดเส้นอ่านพิกเซลภายในให้แบนเรียวเท่าตัวบาร์โค้ดคอยล์
+          aspectRatio: 3.0
+        },
+        onScanSuccess,
+        onScanFailure
+      ).catch(err => {
+        alert("กล้องปฏิเสธการเชื่อมต่อ: " + err + "\nกรุณาเปิดลิงก์ผ่านหน้าเว็บ Google Chrome หรือ Safari โดยตรงครับ");
+        document.getElementById('scanner-modal').style.display = 'none';
       });
-      
-      fileInput.click();
     }
+    
+    function closeScanner() {
+      const md = document.getElementById('scanner-modal');
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+          md.style.display = 'none';
+        }).catch(() => { md.style.display = 'none'; });
+      } else {
+        md.style.display = 'none';
+      }
+    }
+    
+    // เมื่อเลนส์กล้องส่องเจอรหัสสำเร็จ ระบบจะดูดค่าส่งลงล็อกอินพุตและล้างกล้องทันที
+    function onScanSuccess(txt) {
+      document.getElementById(activeInputId).value = txt;
+      closeScanner();
+      
+      // สั่งดึงฐานข้อมูล Excel ลงตารางต่อเนื่องให้แบบอัตโนมัติโดยที่ผู้ใช้ไม่ต้องกดปุ่มเพิ่ม
+      const md = activeInputId.split('-');
+      addDataRow(md);
+    }
+    function onScanFailure(err) { /* ปล่อยว่างเพื่อรอเฟรมภาพถัดไปขณะจับโฟกัสเส้นบาร์โค้ด */ }
 
     function addDataRow(md) {
       const bInp = document.getElementById(md + '-batch');
