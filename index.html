@@ -113,16 +113,16 @@
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน">
+      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน" onkeydown="if(event.key==='Enter'){ event.preventDefault(); moveSearchOrCommit(); }">
     </div>
     <div class="form-group">
       <label>Sloc (สถานที่ย้ายไป):</label>
-      <input type="text" id="move-sloc" class="form-control" placeholder="ระบุ Sloc ปลายทาง">
+      <input type="text" id="move-sloc" class="form-control" placeholder="ระบุ Sloc ปลายทาง" onkeydown="if(event.key==='Enter'){ event.preventDefault(); commitMoveItem(); }">
     </div>
     <div id="move-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
     <div class="btn-group">
       <button class="btn-action btn-scan" onclick="openScanner('move-batch')">📷 สแกน</button>
-      <button class="btn-action btn-add" onclick="addDataRow('move')">➕ เพิ่ม</button>
+      <button class="btn-action btn-add" onclick="moveSearchOrCommit()">➕ เพิ่ม</button>
     </div>
     <div class="table-container">
       <table id="move-table">
@@ -166,10 +166,11 @@
 
   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxiRc-2DGlPFEQdX3VCUWO8P3HnJLkTukQ6BkmekbKyhOrcQB4etcDMcFHcvTvmIh2v/exec";
+    const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
     let html5QrCode = null;
     let activeInputId = '';
+    let pendingMoveItem = null; // เก็บข้อมูลที่ค้นเจอไว้ชั่วคราว ระหว่างรอผู้ใช้แก้ Sloc ในหน้าย้ายแถว
     
     // เมื่อกดปุ่ม UploadFile: สั่งให้ Backend ดึงไฟล์ Excel ล่าสุดจาก OneDrive มาซิงค์เข้า Google Sheet ทันที
     function uploadFileFromOneDrive() {
@@ -260,10 +261,74 @@
       closeScanner();
       
       // สั่งทำงานต่อเนื่องวิ่งไปค้นฐานข้อมูล Excel ทันทีโดยที่หน้างานไม่ต้องเอานิ้วกดปุ่มเพิ่ม
-      const md = activeInputId.split('-');
-      addDataRow(md[0]);
+      const md = activeInputId.split('-')[0];
+      if (md === 'move') {
+        moveSearchOrCommit(); // หน้าย้ายแถว: ค้น Sloc เดิมมาใส่ก่อน แล้วรอแก้ไข
+      } else {
+        addDataRow(md);
+      }
     }
     function onScanFailure(err) { /* ปล่อยว่างเพื่อรอจับโฟกัสแท่งบาร์โค้ดในเฟรมภาพถัดไป */ }
+
+    // หน้าย้ายแถว: ปุ่ม "เพิ่ม" / กด Enter ที่ช่อง Batch No / สแกนเสร็จ ทั้งหมดเรียกฟังก์ชันนี้
+    // ถ้ายังไม่มีรายการค้างอยู่ (pendingMoveItem) → ไปค้นหาข้อมูลก่อน
+    // ถ้ามีรายการค้างอยู่แล้ว (แปลว่ากำลังรอแก้ Sloc) → ยืนยันเพิ่มแถวเลย
+    function moveSearchOrCommit() {
+      if (pendingMoveItem) {
+        commitMoveItem();
+      } else {
+        startMoveSearch();
+      }
+    }
+
+    // ค้นหา Batch No แล้วเอา Sloc เดิมมาใส่ในช่อง Sloc ก่อน พร้อมเลื่อนโฟกัสไปที่ช่องนั้นให้แก้ไขได้ทันที
+    function startMoveSearch() {
+      const bInp = document.getElementById('move-batch');
+      const bNo = bInp.value.trim();
+      const ld = document.getElementById('move-loading');
+      if (!bNo) { alert('กรุณากรอกข้อมูล Batch No'); return; }
+      ld.innerText = "⏳ กำลังค้นหาข้อมูล Excel...";
+      ld.style.display = 'block';
+
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "search", batchNo: bNo })
+      })
+      .then(res => res.json())
+      .then(res => {
+        if (res.success) {
+          pendingMoveItem = res; // เก็บข้อมูลทั้งแถวไว้รอ ยังไม่เพิ่มลงตารางตอนนี้
+          const slocInput = document.getElementById('move-sloc');
+          slocInput.value = res.sloc; // เอา Sloc เดิมมาใส่ให้ก่อนเป็นค่าตั้งต้น
+          slocInput.focus();
+          slocInput.select(); // ไฮไลต์ข้อความไว้ พิมพ์ทับได้ทันทีโดยไม่ต้องลบเอง
+          bInp.value = '';
+          ld.innerText = "✏️ แก้ไข Sloc แล้วกด Enter หรือปุ่ม เพิ่ม เพื่อยืนยัน";
+          ld.style.display = 'block';
+        } else {
+          ld.style.display = 'none';
+          alert(res.msg);
+        }
+      })
+      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+    }
+
+    // เอาข้อมูลที่ค้างไว้ (pendingMoveItem) มาเพิ่มลงตาราง โดยใช้ Sloc ตามที่แก้ไขในช่องอินพุตล่าสุด
+    function commitMoveItem() {
+      if (!pendingMoveItem) return; // ยังไม่เคยค้นหา ไม่มีอะไรให้ยืนยัน
+      const slocInput = document.getElementById('move-sloc');
+      const newSloc = slocInput.value.trim() || pendingMoveItem.sloc;
+
+      const tb = document.querySelector('#move-table tbody');
+      const r = document.createElement('tr');
+      r.innerHTML = `<td>${pendingMoveItem.batchNo}</td><td>${newSloc}</td><td>${pendingMoveItem.size}</td><td>${pendingMoveItem.weight}</td><td>${pendingMoveItem.inspection}</td><td>${pendingMoveItem.maker}</td><td>${pendingMoveItem.spec}</td>`;
+      tb.appendChild(r);
+
+      pendingMoveItem = null;
+      slocInput.value = '';
+      document.getElementById('move-loading').style.display = 'none';
+      document.getElementById('move-batch').focus(); // พร้อมสแกน/พิมพ์ตัวถัดไปทันที
+    }
 
     function addDataRow(md) {
       const bInp = document.getElementById(md + '-batch');
@@ -301,6 +366,7 @@
       const slInp = document.getElementById(md + '-sloc');
       if(slInp) { slInp.value = ''; }
       document.querySelector('#' + md + '-table tbody').innerHTML = '';
+      if (md === 'move') { pendingMoveItem = null; } // เคลียร์รายการที่ค้างรอแก้ Sloc ด้วย
     }
     
     function submitMoveData() {
