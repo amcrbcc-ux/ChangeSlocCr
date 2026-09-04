@@ -113,11 +113,11 @@
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน" onkeydown="if(event.key==='Enter'){ event.preventDefault(); moveSearchOrCommit(); }">
+      <input type="text" id="move-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน" enterkeyhint="go" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); moveSearchOrCommit(); }">
     </div>
     <div class="form-group">
       <label>Sloc (สถานที่ย้ายไป):</label>
-      <input type="text" id="move-sloc" class="form-control" placeholder="ระบุ Sloc ปลายทาง" onkeydown="if(event.key==='Enter'){ event.preventDefault(); commitMoveItem(); }">
+      <input type="text" id="move-sloc" class="form-control" placeholder="ระบุ Sloc ปลายทาง" enterkeyhint="done" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); commitMoveItem(); }">
     </div>
     <div id="move-loading" class="loading">⏳ กำลังประมวลผลข้อมูล...</div>
     <div class="btn-group">
@@ -167,6 +167,7 @@
   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
     const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxiRc-2DGlPFEQdX3VCUWO8P3HnJLkTukQ6BkmekbKyhOrcQB4etcDMcFHcvTvmIh2v/exec";
+
     let html5QrCode = null;
     let activeInputId = '';
     let pendingMoveItem = null; // เก็บข้อมูลที่ค้นเจอไว้ชั่วคราว ระหว่างรอผู้ใช้แก้ Sloc ในหน้าย้ายแถว
