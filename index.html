@@ -10,6 +10,10 @@
     * { box-sizing: border-box; }
     body { font-family: -apple-system, sans-serif; margin: 0; padding: 0; background-color: #f5f7fb; color: #333; }
     .menu-container { display: flex; flex-direction: column; gap: 20px; padding: 30px 20px; height: 100vh; justify-content: center; }
+    #login-page { display: flex; }
+    .login-title { text-align: center; font-size: 1.6rem; font-weight: bold; margin-bottom: 10px; color: #37474f; }
+    .btn-login { background-color: #1e88e5; border: none; border-radius: 8px; color: white; padding: 16px; font-size: 1.15rem; font-weight: bold; cursor: pointer; width: 100%; }
+    .btn-logout { background-color: #78909c; }
     .btn-main { width: 100%; padding: 25px; font-size: 1.4rem; font-weight: bold; border: none; border-radius: 12px; color: white; cursor: pointer; display: block; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .btn-blue { background-color: #1e88e5; }
     .btn-orange { background-color: #fb8c00; }
@@ -57,17 +61,44 @@
     .scanner-tip { color: white; margin-top: 15px; font-weight: bold; font-size: 0.95rem; text-align: center; }
     .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
+
+    /* 🖨️ ป้ายที่จะพิมพ์ (หน้ารับเข้า) */
+    .label-print-area { background: white; border: 2px dashed #37474f; border-radius: 8px; padding: 20px; margin-top: 20px; text-align: center; }
+    .label-row { font-size: 1.4rem; font-weight: bold; margin: 6px 0; letter-spacing: 2px; }
+
+    /* ตอนสั่งพิมพ์จริง ให้โชว์แค่ป้ายอย่างเดียว ซ่อนปุ่ม/เมนู/ช่องกรอกทั้งหมด */
+    @media print {
+      body * { visibility: hidden; }
+      .label-print-area, .label-print-area * { visibility: visible; }
+      .label-print-area { position: absolute; top: 0; left: 0; width: 100%; border: none; }
+    }
   </style>
 </head>
 <body>
+
+  <!-- หน้าเข้าสู่ระบบ (พักไว้ก่อน — ยังไม่เปิดใช้งาน จะกลับมาทำตอนหน้าเว็บเสร็จ)
+  <div id="login-page" class="menu-container">
+    <div class="login-title">🔒 เข้าสู่ระบบ</div>
+    <div class="form-group">
+      <label>ชื่อผู้ใช้:</label>
+      <input type="text" id="login-username" class="form-control" placeholder="Username" autocapitalize="off" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>รหัสผ่าน:</label>
+      <input type="password" id="login-password" class="form-control" placeholder="Password" autocomplete="current-password" enterkeyhint="go" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); doLogin(); }">
+    </div>
+    <div id="login-loading" class="loading">⏳ กำลังเข้าสู่ระบบ...</div>
+    <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
+  </div>
+  -->
 
   <!-- หน้าเมนูหลัก -->
   <div id="menu-page" class="menu-container">
     <button class="btn-main btn-blue" onclick="switchPage('view-page')">ดูแถว</button>
     <button class="btn-main btn-orange" onclick="switchPage('move-page')">ย้ายแถว</button>
     <button class="btn-main btn-purple" onclick="switchPage('job-page')">Job</button>
-    <button class="btn-main btn-upload" id="btn-upload-file" onclick="uploadFileFromOneDrive()">⬆️ UploadFile</button>
-    <div id="upload-loading" class="loading">⏳ กำลังอัปโหลดข้อมูลจาก OneDrive...</div>
+    <button class="btn-main btn-upload" onclick="switchPage('receive-page')">📥 รับเข้า</button>
+    <!-- <button class="btn-main btn-logout" onclick="doLogout()">🚪 ออกจากระบบ</button> -->
   </div>
 
   <!-- หน้าดูแถว -->
@@ -154,6 +185,42 @@
     <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
   </div>
 
+  <!-- หน้ารับเข้า -->
+  <div id="receive-page" class="page">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
+      <h2>หน้ารับเข้า</h2>
+    </div>
+
+    <div class="form-group">
+      <label>Truck No (ทะเบียนรถ):</label>
+      <input type="text" id="receive-truckno" class="form-control" placeholder="ระบุทะเบียนรถ">
+    </div>
+    <div class="form-group">
+      <label>Batch No:</label>
+      <input type="text" id="receive-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน" enterkeyhint="go" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); receiveSearch(); }">
+    </div>
+    <div id="receive-loading" class="loading">⏳ กำลังค้นหาข้อมูล...</div>
+    <div class="btn-group">
+      <button class="btn-action btn-scan" onclick="openScanner('receive-batch')">📷 สแกน</button>
+      <button class="btn-action btn-add" onclick="receiveSearch()">🔍 ค้นหา/นำเข้า</button>
+    </div>
+
+    <div id="receive-label-area" class="label-print-area" style="display:none;">
+      <div class="label-row"><span id="receive-label-first8"></span></div>
+      <div class="label-row"><span id="receive-label-last6"></span></div>
+      <div class="label-row"><span id="receive-label-first8-dup"></span></div>
+      <div class="label-row"><span id="receive-label-last6-dup"></span></div>
+      <div class="label-row">Size: <span id="receive-label-size"></span></div>
+      <div class="label-row">Weight: <span id="receive-label-weight"></span></div>
+    </div>
+
+    <div class="btn-bottom-group" id="receive-print-group" style="display:none;">
+      <button class="btn-clear" onclick="clearReceivePage()">🗑️ ล้างข้อมูล</button>
+      <button class="btn-submit" onclick="window.print()">🖨️ พิมพ์ป้าย</button>
+    </div>
+  </div>
+
   <!-- หน้าต่างเปิดแถบกล้องพร้อมเลเซอร์สแกนอัตโนมัติ -->
   <div id="scanner-modal">
     <div class="scanner-wrapper">
@@ -166,7 +233,7 @@
 
   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzL46rT4JNFA2sQN_d-O-kLtGf8BXla8ufyeqnF9EaeJcwE-skPLQp919TKapTnP7If/exec";
+    const BACKEND_URL = "วาง_URL_เว็บแอป_APPS_SCRIPT_ที่ลงท้ายด้วย_EXEC_ตรงนี้";
 
     let html5QrCode = null;
     let activeInputId = '';
@@ -181,7 +248,7 @@
 
       fetch(BACKEND_URL, {
         method: "POST",
-        body: JSON.stringify({ action: "syncOneDrive" })
+        body: JSON.stringify({ action: "syncFromDrive" })
       })
       .then(res => res.json())
       .then(res => {
@@ -205,6 +272,7 @@
       document.getElementById('view-page').style.display = 'none';
       document.getElementById('move-page').style.display = 'none';
       document.getElementById('job-page').style.display = 'none';
+      document.getElementById('receive-page').style.display = 'none';
       const tg = document.getElementById(pId);
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
@@ -264,6 +332,8 @@
       const md = activeInputId.split('-')[0];
       if (md === 'move') {
         moveSearchOrCommit(); // หน้าย้ายแถว: ค้น Sloc เดิมมาใส่ก่อน แล้วรอแก้ไข
+      } else if (md === 'receive') {
+        receiveSearch(); // หน้ารับเข้า: ค้นหา + นำเข้า + เตรียมพิมพ์ป้าย
       } else {
         addDataRow(md);
       }
@@ -329,6 +399,48 @@
       document.getElementById('move-batch').value = ''; // ล้าง Batch No ตอนยืนยันเพิ่มแถวแล้วเท่านั้น
       document.getElementById('move-loading').style.display = 'none';
       document.getElementById('move-batch').focus(); // พร้อมสแกน/พิมพ์ตัวถัดไปทันที
+    }
+
+    // หน้ารับเข้า: ค้นหา Batch No (McCoilin ก่อน ไม่เจอค่อยหา McCoilAll) แล้วเตรียมป้ายไว้พิมพ์
+    // ถ้าเจอใน McCoilin จะคัดลอกเข้า McCoilAll พร้อม TruckNo ให้อัตโนมัติที่ฝั่ง backend
+    function receiveSearch() {
+      const bNo = document.getElementById('receive-batch').value.trim();
+      const truckNo = document.getElementById('receive-truckno').value.trim();
+      const ld = document.getElementById('receive-loading');
+
+      if (!bNo) { alert('กรุณากรอกหรือสแกน Batch No'); return; }
+      ld.innerText = "⏳ กำลังค้นหาข้อมูล...";
+      ld.style.display = 'block';
+
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "receiveImport", batchNo: bNo, truckNo: truckNo })
+      })
+      .then(res => res.json())
+      .then(res => {
+        ld.style.display = 'none';
+        if (res.success) {
+          document.getElementById('receive-label-first8').textContent = res.first8;
+          document.getElementById('receive-label-last6').textContent = res.last6;
+          document.getElementById('receive-label-first8-dup').textContent = res.first8;
+          document.getElementById('receive-label-last6-dup').textContent = res.last6;
+          document.getElementById('receive-label-size').textContent = res.size;
+          document.getElementById('receive-label-weight').textContent = res.weight;
+          document.getElementById('receive-label-area').style.display = 'block';
+          document.getElementById('receive-print-group').style.display = 'grid';
+          if (res.imported) { alert(res.msg); }
+        } else {
+          alert(res.msg);
+        }
+      })
+      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+    }
+
+    function clearReceivePage() {
+      document.getElementById('receive-batch').value = '';
+      document.getElementById('receive-truckno').value = '';
+      document.getElementById('receive-label-area').style.display = 'none';
+      document.getElementById('receive-print-group').style.display = 'none';
     }
 
     function addDataRow(md) {
