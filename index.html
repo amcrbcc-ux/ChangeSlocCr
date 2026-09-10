@@ -6,6 +6,9 @@
   <title>ระบบคอยล์</title>
   <!-- นำเข้าคลังรหัสสแกนบาร์โค้ดเวอร์ชันเสถียรดึงข้อมูลไว -->
   <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- ใช้สร้างไฟล์ PDF ดาวน์โหลดตรงๆ (ปุ่ม SavePDF ในหน้า Report) โดยไม่ต้องผ่านหน้าต่างพิมพ์ของเบราว์เซอร์ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, sans-serif; margin: 0; padding: 0; background-color: #f5f7fb; color: #333; }
@@ -19,6 +22,14 @@
     .btn-orange { background-color: #fb8c00; }
     .btn-purple { background-color: #8e24aa; }
     .btn-upload { background-color: #00897b; }
+    .btn-report { background-color: #5e35b1; }
+
+    /* 📊 Daily Receive Report */
+    .report-title { text-align: center; font-size: 1.3rem; font-weight: bold; margin: 15px 0 8px; }
+    .report-summary, .report-detail { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 0.85rem; }
+    .report-summary td, .report-detail th, .report-detail td { border: 1px solid #37474f; padding: 6px 8px; text-align: center; }
+    .report-summary td { font-weight: bold; }
+    .report-detail th { background-color: #37474f; color: white; }
     .page { display: none; padding: 15px; }
     #menu-page { display: flex; }
     .header-bar { display: flex; align-items: center; margin-bottom: 15px; }
@@ -62,15 +73,21 @@
     .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
 
-    /* 🖨️ ป้ายที่จะพิมพ์ (หน้ารับเข้า) */
-    .label-print-area { background: white; border: 2px dashed #37474f; border-radius: 8px; padding: 20px; margin-top: 20px; text-align: center; }
-    .label-row { font-size: 1.4rem; font-weight: bold; margin: 6px 0; letter-spacing: 2px; }
+    /* 🖨️ ป้ายที่จะพิมพ์ (หน้ารับเข้า) — 1 แถวต่อ 1 รายการ, 6 ช่องเรียงแนวนอนในแถวเดียวกัน */
+    #print-label-container { display: none; }
+    .print-label-row { display: flex; flex-direction: row; align-items: baseline; gap: 4px; }
+    .print-label-row input {
+      margin: 0; padding: 0; border: none; background: transparent;
+      font-family: 'Bernard MT Condensed', sans-serif; text-align: center;
+    }
+    .lbl-225 { font-size: 225px; }
+    .lbl-290 { font-size: 290px; }
 
-    /* ตอนสั่งพิมพ์จริง ให้โชว์แค่ป้ายอย่างเดียว ซ่อนปุ่ม/เมนู/ช่องกรอกทั้งหมด */
+    /* ตอนสั่งพิมพ์จริง (ทั้งหน้ารับเข้าและหน้า Report) ให้โชว์แค่ .print-target ที่กำหนดไว้ตอนนั้นเท่านั้น */
     @media print {
       body * { visibility: hidden; }
-      .label-print-area, .label-print-area * { visibility: visible; }
-      .label-print-area { position: absolute; top: 0; left: 0; width: 100%; border: none; }
+      .print-target, .print-target * { visibility: visible; }
+      .print-target { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
     }
   </style>
 </head>
@@ -98,7 +115,25 @@
     <button class="btn-main btn-orange" onclick="switchPage('move-page')">ย้ายแถว</button>
     <button class="btn-main btn-purple" onclick="switchPage('job-page')">Job</button>
     <button class="btn-main btn-upload" onclick="switchPage('receive-page')">📥 รับเข้า</button>
+    <button class="btn-main btn-report" onclick="switchPage('report-page')">📊 Report</button>
     <!-- <button class="btn-main btn-logout" onclick="doLogout()">🚪 ออกจากระบบ</button> -->
+  </div>
+
+  <!-- หน้า Report -->
+  <div id="report-page" class="page">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
+      <h2>Daily Receive Report</h2>
+    </div>
+    <div class="form-group">
+      <label>เลือกวันที่:</label>
+      <input type="date" id="report-date" class="form-control" onchange="loadDailyReport()">
+    </div>
+    <div id="report-loading" class="loading">⏳ กำลังโหลดรายงาน...</div>
+    <div class="btn-group">
+      <button class="btn-action btn-add" onclick="savePDF()">💾 SavePDF</button>
+    </div>
+    <div id="report-print-area"></div>
   </div>
 
   <!-- หน้าดูแถว -->
@@ -193,33 +228,38 @@
     </div>
 
     <div class="form-group">
-      <label>Truck No (ทะเบียนรถ):</label>
-      <input type="text" id="receive-truckno" class="form-control" placeholder="ระบุทะเบียนรถ">
+      <label>ทะเบียนรถ (##-####):</label>
+      <input type="text" id="receive-truckplate" class="form-control" placeholder="00-0000 หรือ 000-0000" maxlength="8" oninput="formatTruckPlate(this)">
     </div>
     <div class="form-group">
       <label>Batch No:</label>
-      <input type="text" id="receive-batch" class="form-control" placeholder="พิมพ์หรือกดปุ่มเพื่อสแกน" enterkeyhint="go" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); receiveSearch(); }">
+      <input type="text" id="receive-batch" class="form-control" placeholder="พิมพ์ Batch No" enterkeyhint="go" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); addReceiveItem(); }">
     </div>
     <div id="receive-loading" class="loading">⏳ กำลังค้นหาข้อมูล...</div>
     <div class="btn-group">
-      <button class="btn-action btn-scan" onclick="openScanner('receive-batch')">📷 สแกน</button>
-      <button class="btn-action btn-add" onclick="receiveSearch()">🔍 ค้นหา/นำเข้า</button>
+      <button class="btn-action btn-scan" onclick="importNewData()">⬇️ ดาวน์โหลดไฟล์</button>
+      <button class="btn-action btn-add" onclick="addReceiveItem()">➕ เพิ่ม</button>
     </div>
 
-    <div id="receive-label-area" class="label-print-area" style="display:none;">
-      <div class="label-row"><span id="receive-label-first8"></span></div>
-      <div class="label-row"><span id="receive-label-last6"></span></div>
-      <div class="label-row"><span id="receive-label-first8-dup"></span></div>
-      <div class="label-row"><span id="receive-label-last6-dup"></span></div>
-      <div class="label-row">Size: <span id="receive-label-size"></span></div>
-      <div class="label-row">Weight: <span id="receive-label-weight"></span></div>
+    <!-- รายการที่ค้นเจอแล้ว เรียงลงมาเรื่อยๆ ทีละแถว (ยังไม่ได้ย้ายข้อมูลจริง รอกดพิมพ์ก่อน) -->
+    <div class="table-container">
+      <table id="receive-table">
+        <thead>
+          <tr><th>BatchNo</th><th>Size</th><th>Weight</th><th>พบใน</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
 
-    <div class="btn-bottom-group" id="receive-print-group" style="display:none;">
-      <button class="btn-clear" onclick="clearReceivePage()">🗑️ ล้างข้อมูล</button>
-      <button class="btn-submit" onclick="window.print()">🖨️ พิมพ์ป้าย</button>
+    <div class="btn-bottom-group">
+      <button class="btn-clear" onclick="clearReceivePage()">🗑️ ล้างทั้งหมด</button>
+      <button class="btn-submit" onclick="printReceive()">🖨️ พิมพ์</button>
     </div>
   </div>
+
+  <!-- พื้นที่พิมพ์ป้าย: สร้างแถวใหม่ให้อัตโนมัติตามจำนวนรายการที่เพิ่มไว้ในหน้ารับเข้า -->
+  <div id="print-label-container"></div>
+
 
   <!-- หน้าต่างเปิดแถบกล้องพร้อมเลเซอร์สแกนอัตโนมัติ -->
   <div id="scanner-modal">
@@ -233,7 +273,7 @@
 
   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwzWwQ1GwwlOOuTb5PCMMeFXL5NuAFGQxUiWCdS006FA8fVzylfRfVDPNHNYIjeCfNS/exec";
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzTBEXfbbp9OLzXhyLwyJ6VtvuRWqLmI4ieEFWbRAce0z7b0OKip_yCEW3f_dXkYdwA/exec";
 
     let html5QrCode = null;
     let activeInputId = '';
@@ -273,6 +313,7 @@
       document.getElementById('move-page').style.display = 'none';
       document.getElementById('job-page').style.display = 'none';
       document.getElementById('receive-page').style.display = 'none';
+      document.getElementById('report-page').style.display = 'none';
       const tg = document.getElementById(pId);
       if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
     }
@@ -333,7 +374,7 @@
       if (md === 'move') {
         moveSearchOrCommit(); // หน้าย้ายแถว: ค้น Sloc เดิมมาใส่ก่อน แล้วรอแก้ไข
       } else if (md === 'receive') {
-        receiveSearch(); // หน้ารับเข้า: ค้นหา + นำเข้า + เตรียมพิมพ์ป้าย
+        addReceiveItem(); // หน้ารับเข้า: ค้นหาอย่างเดียว แล้วต่อแถวป้ายพิมพ์
       } else {
         addDataRow(md);
       }
@@ -401,11 +442,50 @@
       document.getElementById('move-batch').focus(); // พร้อมสแกน/พิมพ์ตัวถัดไปทันที
     }
 
-    // หน้ารับเข้า: ค้นหา Batch No (McCoilin ก่อน ไม่เจอค่อยหา McCoilAll) แล้วเตรียมป้ายไว้พิมพ์
-    // ถ้าเจอใน McCoilin จะคัดลอกเข้า McCoilAll พร้อม TruckNo ให้อัตโนมัติที่ฝั่ง backend
-    function receiveSearch() {
-      const bNo = document.getElementById('receive-batch').value.trim();
-      const truckNo = document.getElementById('receive-truckno').value.trim();
+    // ปุ่ม "ดาวน์โหลดไฟล์": ดึงข้อมูลใหม่จากไฟล์ต้นทาง (แทนการสแกนทีละใบ) เข้า McCoilin ให้พร้อมค้นหา
+    function importNewData() {
+      const ld = document.getElementById('receive-loading');
+      ld.innerText = "⏳ กำลังดึงข้อมูลใหม่จากไฟล์ต้นทาง...";
+      ld.style.display = 'block';
+
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "importNewData" })
+      })
+      .then(res => res.json())
+      .then(res => {
+        ld.style.display = 'none';
+        alert(res.msg);
+      })
+      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+    }
+
+    // เก็บรายการที่ค้นเจอไว้ในตัวแปรนี้ ระหว่างรอกดปุ่ม "พิมพ์" ถึงจะค่อยย้ายข้อมูลจริง
+    let receiveItems = [];
+
+    // จัดรูปแบบทะเบียนรถอัตโนมัติ: รองรับทั้งแบบ ##-#### (6 หลัก) และ ###-#### (7 หลัก)
+    // พิมพ์ตัวเลขไปเรื่อยๆ ถ้าพิมพ์ครบ 7 หลัก ระบบจะสลับไปใช้รูปแบบ 3-4 ให้อัตโนมัติ
+    function formatTruckPlate(inp) {
+      let digits = inp.value.replace(/\D/g, '').slice(0, 7);
+      if (digits.length <= 6) {
+        inp.value = digits.length > 2 ? digits.slice(0, 2) + '-' + digits.slice(2) : digits;
+      } else {
+        inp.value = digits.slice(0, 3) + '-' + digits.slice(3);
+      }
+    }
+
+    // ใส่ comma คั่นหลักพัน เช่น 7500 -> "7,500"
+    function formatWeightComma(val) {
+      const num = parseFloat(val);
+      if (isNaN(num)) return val;
+      return num.toLocaleString('en-US');
+    }
+
+    // กด "เพิ่ม": ค้นหาอย่างเดียว (McCoilin ก่อน ไม่เจอค่อยหา McCoilAll) ยังไม่แก้ข้อมูลอะไรในชีต
+    // เจอแล้วเอาไปต่อในตารางแสดงผล + สร้างแถวป้ายสำหรับพิมพ์เพิ่มอีก 1 แถว
+    function addReceiveItem() {
+      const bInp = document.getElementById('receive-batch');
+      const bNo = bInp.value.trim();
       const ld = document.getElementById('receive-loading');
 
       if (!bNo) { alert('กรุณากรอกหรือสแกน Batch No'); return; }
@@ -414,33 +494,178 @@
 
       fetch(BACKEND_URL, {
         method: "POST",
-        body: JSON.stringify({ action: "receiveImport", batchNo: bNo, truckNo: truckNo })
+        body: JSON.stringify({ action: "searchOnly", batchNo: bNo })
       })
       .then(res => res.json())
       .then(res => {
         ld.style.display = 'none';
-        if (res.success) {
-          document.getElementById('receive-label-first8').textContent = res.first8;
-          document.getElementById('receive-label-last6').textContent = res.last6;
-          document.getElementById('receive-label-first8-dup').textContent = res.first8;
-          document.getElementById('receive-label-last6-dup').textContent = res.last6;
-          document.getElementById('receive-label-size').textContent = res.size;
-          document.getElementById('receive-label-weight').textContent = res.weight;
-          document.getElementById('receive-label-area').style.display = 'block';
-          document.getElementById('receive-print-group').style.display = 'grid';
-          if (res.imported) { alert(res.msg); }
-        } else {
-          alert(res.msg);
-        }
+        if (!res.success) { alert(res.msg); return; }
+
+        receiveItems.push(res);
+        bInp.value = '';
+        bInp.focus();
+
+        // ต่อแถวในตารางแสดงผลบนหน้าเว็บ
+        const tb = document.querySelector('#receive-table tbody');
+        const r = document.createElement('tr');
+        r.innerHTML = `<td>${res.batchNo}</td><td>${res.size}</td><td>${res.weight}</td><td>${res.foundIn}</td>`;
+        tb.appendChild(r);
+
+        // สร้างแถวป้ายสำหรับพิมพ์เพิ่มอีก 1 แถว ตามจำนวนรายการที่มีตอนนี้
+        appendPrintLabelRow(res);
       })
       .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
     }
 
+    // สร้างแถวป้าย 6 ช่อง เรียงแนวนอนในแถวเดียวกัน ตามฟอนต์/ขนาดที่กำหนด
+    function appendPrintLabelRow(item) {
+      const batchVal = String(item.batchNo);
+      const first8 = batchVal.substring(0, 8);
+      const last6 = batchVal.length >= 6 ? batchVal.substring(batchVal.length - 6) : batchVal;
+      const weightFormatted = formatWeightComma(item.weight);
+
+      const row = document.createElement('div');
+      row.className = 'print-label-row';
+      row.innerHTML = `
+        <input type="text" class="lbl-225" readonly value="${first8}">
+        <input type="text" class="lbl-290" readonly value="${last6}">
+        <input type="text" class="lbl-225" readonly value="${first8}">
+        <input type="text" class="lbl-290" readonly value="${last6}">
+        <input type="text" class="lbl-225" readonly value="${item.size}">
+        <input type="text" class="lbl-290" readonly value="${weightFormatted}">
+      `;
+      document.getElementById('print-label-container').appendChild(row);
+    }
+
+    // เลือกว่า container ไหนจะถูกพิมพ์ตอนนี้ (ล้าง .print-target ตัวอื่นออกก่อนเสมอ กันโชว์ผิดพื้นที่)
+    function preparePrint(targetId) {
+      document.querySelectorAll('.print-target').forEach(el => el.classList.remove('print-target'));
+      document.getElementById(targetId).classList.add('print-target');
+    }
+
+    // กด "พิมพ์": ย้ายข้อมูลจริง (เฉพาะรายการที่มาจาก McCoilin) เข้า McCoilAll พร้อม Truck Plate No + วันที่
+    // แล้วลบออกจาก McCoilin จากนั้นค่อยเปิดหน้าต่างพิมพ์ของเบราว์เซอร์
+    function printReceive() {
+      if (receiveItems.length === 0) { alert('ยังไม่มีรายการให้พิมพ์'); return; }
+
+      const truckPlateNo = document.getElementById('receive-truckplate').value.trim();
+      const ld = document.getElementById('receive-loading');
+      ld.innerText = "⏳ กำลังบันทึกข้อมูล...";
+      ld.style.display = 'block';
+
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "finalizeReceive", items: receiveItems, truckPlateNo: truckPlateNo })
+      })
+      .then(res => res.json())
+      .then(res => {
+        ld.style.display = 'none';
+        if (!res.success) { alert(res.msg); return; }
+        preparePrint('print-label-container');
+        window.print();
+      })
+      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+    }
+
+    // หน้า Report: โหลด Daily Receive Report ตามวันที่ที่เลือก แยกเป็น Coil / Sheet
+    let lastReportResult = null;
+
+    function loadDailyReport() {
+      const dateVal = document.getElementById('report-date').value; // yyyy-MM-dd
+      if (!dateVal) return;
+
+      const ld = document.getElementById('report-loading');
+      ld.innerText = "⏳ กำลังโหลดรายงาน...";
+      ld.style.display = 'block';
+
+      fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "getDailyReceiveReport", date: dateVal })
+      })
+      .then(res => res.json())
+      .then(res => {
+        ld.style.display = 'none';
+        if (!res.success) { alert(res.msg); return; }
+        lastReportResult = res;
+        renderDailyReport(res);
+      })
+      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+    }
+
+    function buildReportSection(title, section, unitLabel) {
+      if (!section || section.rows.length === 0) return '';
+      let html = `<div class="report-title">${title}</div>`;
+      html += `<table class="report-summary"><tr>
+        <td>Date</td><td>${lastReportResult.date}</td>
+        <td>Total ${unitLabel}</td><td>${section.totalQty} ${unitLabel}</td>
+        <td>Total Weight</td><td>${section.totalWgt} Kgs</td>
+        <td>Total Truck</td><td>${section.totalTruck} Truck</td>
+      </tr></table>`;
+      html += `<table class="report-detail"><thead><tr>
+        <th>No</th><th>Batch No</th><th>Size</th><th>Spec</th><th>Weight</th><th>Quantity</th><th>Inspection</th><th>Maker</th><th>Truck No</th>
+      </tr></thead><tbody>`;
+      section.rows.forEach(r => {
+        html += `<tr><td>${r.no}</td><td>${r.batchNo}</td><td>${r.size}</td><td>${r.spec}</td><td>${r.weight}</td><td>${r.quantity}</td><td>${r.inspection}</td><td>${r.maker}</td><td>${r.truckNo}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      return html;
+    }
+
+    function renderDailyReport(res) {
+      const container = document.getElementById('report-print-area');
+      let html = '';
+      html += buildReportSection('Daily Receive Report (Coil)', res.coil, 'Coil');
+      html += buildReportSection('Daily Receive Report (Sheet)', res.sheet, 'Pack');
+      container.innerHTML = html || '<p style="text-align:center;color:#78909c;">ไม่พบข้อมูลรับเข้าในวันที่นี้</p>';
+    }
+
+    // ปุ่ม SavePDF: สร้างไฟล์ PDF จริงแล้วดาวน์โหลดลงเครื่องทันที (ไม่ผ่านหน้าต่างพิมพ์ของเบราว์เซอร์)
+    function savePDF() {
+      if (!lastReportResult || (!lastReportResult.coil && !lastReportResult.sheet)) {
+        alert('กรุณาเลือกวันที่ที่มีข้อมูลก่อน');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 15;
+
+      function addSection(title, section, unitLabel) {
+        if (!section || section.rows.length === 0) return;
+
+        doc.setFontSize(14);
+        doc.text(title, 105, y, { align: 'center' });
+        y += 7;
+
+        doc.setFontSize(9);
+        const summaryLine = `Date: ${lastReportResult.date}   Total ${unitLabel}: ${section.totalQty} ${unitLabel}   Total Weight: ${section.totalWgt} Kgs   Total Truck: ${section.totalTruck} Truck`;
+        doc.text(summaryLine, 105, y, { align: 'center' });
+        y += 6;
+
+        doc.autoTable({
+          startY: y,
+          head: [['No', 'Batch No', 'Size', 'Spec', 'Weight', 'Quantity', 'Inspection', 'Maker', 'Truck No']],
+          body: section.rows.map(r => [r.no, r.batchNo, r.size, r.spec, r.weight, r.quantity, r.inspection, r.maker, r.truckNo]),
+          styles: { fontSize: 7, cellPadding: 2 },
+          headStyles: { fillColor: [55, 71, 79] },
+          margin: { left: 10, right: 10 }
+        });
+
+        y = doc.lastAutoTable.finalY + 12;
+      }
+
+      addSection('Daily Receive Report (Coil)', lastReportResult.coil, 'Coil');
+      addSection('Daily Receive Report (Sheet)', lastReportResult.sheet, 'Pack');
+
+      doc.save(`DailyReceiveReport_${lastReportResult.date}.pdf`);
+    }
+
     function clearReceivePage() {
+      receiveItems = [];
       document.getElementById('receive-batch').value = '';
-      document.getElementById('receive-truckno').value = '';
-      document.getElementById('receive-label-area').style.display = 'none';
-      document.getElementById('receive-print-group').style.display = 'none';
+      document.getElementById('receive-truckplate').value = '';
+      document.querySelector('#receive-table tbody').innerHTML = '';
+      document.getElementById('print-label-container').innerHTML = '';
     }
 
     function addDataRow(md) {
