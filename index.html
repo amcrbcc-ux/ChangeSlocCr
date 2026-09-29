@@ -73,18 +73,24 @@
     .btn-close-scan { margin-top: 15px; padding: 12px 25px; background: #e53935; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     .loading { color: #1e88e5; font-weight: bold; text-align: center; margin: 12px 0; display: none; }
 
-    /* 🖨️ ป้ายที่จะพิมพ์ (หน้ารับเข้า) — 1 แถวต่อ 1 รายการ, 6 ช่องเรียงแนวนอนในแถวเดียวกัน */
+    /* 🖨️ ป้ายที่จะพิมพ์ (หน้ารับเข้า) — แต่ละรายการแยกเป็น 3 หน้ากระดาษต่อกัน:
+       หน้า 1-2: ป้าย Batch No (เลข 8 ตัวหน้า/6 ตัวหลัง เรียงบน-ล่าง) x2 ชุด (ก็อปปี้ 2 ใบ)
+       หน้า 3: ป้าย Size/Weight (เรียงบน-ล่าง) */
     #print-label-container { display: none; }
-    .print-label-row { display: flex; flex-direction: row; align-items: baseline; gap: 4px; }
-    .print-label-row input {
-      margin: 0; padding: 0; border: none; background: transparent;
+    .print-page {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 100%; page-break-after: always;
+    }
+    .print-page input {
+      margin: 0; padding: 0; border: none; background: transparent; width: 100%;
       font-family: 'Times New Roman', sans-serif; text-align: center;
     }
-    .lbl-225 { font-size: 170px; }
-    .lbl-290 { font-size: 250px; }
+    .lbl-225 { font-size: 160px; font-weight: bold; }
+    .lbl-290 { font-size: 240px; font-weight: bold; }
 
     /* ตอนสั่งพิมพ์จริง (ทั้งหน้ารับเข้าและหน้า Report) ให้โชว์แค่ .print-target ที่กำหนดไว้ตอนนั้นเท่านั้น */
     @media print {
+      @page { size: landscape; margin: 0; }
       body * { visibility: hidden; }
       .print-target, .print-target * { visibility: visible; }
       .print-target { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
@@ -273,7 +279,30 @@
 
   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzTBEXfbbp9OLzXhyLwyJ6VtvuRWqLmI4ieEFWbRAce0z7b0OKip_yCEW3f_dXkYdwA/exec";
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyIj3sIBqRwM2eU_M4Pl4iiFBOwNiqKEPXVtsVk3FDuik6Hn8Kaoql6dpj5Ggti1yCYzQ/exec";
+
+    // เรียก backend แบบปลอดภัยขึ้น: บางครั้ง Apps Script อาจส่งหน้า HTML error กลับมาแทน JSON
+    // ชั่วคราว (เช่น execution timeout หรือมีคนใช้พร้อมกันเยอะเกิน concurrent limit)
+    // ฟังก์ชันนี้จะลองใหม่ให้อัตโนมัติ 1 ครั้งก่อน ค่อยแจ้ง error ที่เข้าใจง่ายกว่าเดิม
+    async function postJSON(bodyObj, isRetry) {
+      let res;
+      try {
+        res = await fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(bodyObj) });
+      } catch (networkErr) {
+        throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาเช็คอินเทอร์เน็ตแล้วลองใหม่');
+      }
+
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (parseErr) {
+        if (!isRetry) {
+          await new Promise(r => setTimeout(r, 800)); // รอสักครู่แล้วลองใหม่อีก 1 ครั้ง
+          return postJSON(bodyObj, true);
+        }
+        throw new Error('เซิร์ฟเวอร์ตอบกลับผิดปกติชั่วคราว (อาจมีคนใช้งานพร้อมกันเยอะ หรือประมวลผลนานเกินไป) กรุณาลองใหม่อีกครั้ง');
+      }
+    }
 
     let html5QrCode = null;
     let activeInputId = '';
@@ -286,11 +315,7 @@
       btn.disabled = true;
       ld.style.display = 'block';
 
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "syncFromDrive" })
-      })
-      .then(res => res.json())
+      postJSON({ action: "syncFromDrive" })
       .then(res => {
         ld.style.display = 'none';
         btn.disabled = false;
@@ -303,7 +328,7 @@
       .catch(e => {
         ld.style.display = 'none';
         btn.disabled = false;
-        alert('เชื่อมต่อผิดพลาด: ' + e);
+        alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e));
       });
     }
 
@@ -401,11 +426,7 @@
       ld.innerText = "⏳ กำลังค้นหาข้อมูล Excel...";
       ld.style.display = 'block';
 
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "search", batchNo: bNo })
-      })
-      .then(res => res.json())
+      postJSON({ action: "search", batchNo: bNo })
       .then(res => {
         if (res.success) {
           pendingMoveItem = res; // เก็บข้อมูลทั้งแถวไว้รอ ยังไม่เพิ่มลงตารางตอนนี้
@@ -421,7 +442,7 @@
           alert(res.msg);
         }
       })
-      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
     }
 
     // เอาข้อมูลที่ค้างไว้ (pendingMoveItem) มาเพิ่มลงตาราง โดยใช้ Sloc ตามที่แก้ไขในช่องอินพุตล่าสุด
@@ -448,16 +469,12 @@
       ld.innerText = "⏳ กำลังดึงข้อมูลใหม่จากไฟล์ต้นทาง...";
       ld.style.display = 'block';
 
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "importNewData" })
-      })
-      .then(res => res.json())
+      postJSON({ action: "importNewData" })
       .then(res => {
         ld.style.display = 'none';
         alert(res.msg);
       })
-      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
     }
 
     // เก็บรายการที่ค้นเจอไว้ในตัวแปรนี้ ระหว่างรอกดปุ่ม "พิมพ์" ถึงจะค่อยย้ายข้อมูลจริง
@@ -492,11 +509,7 @@
       ld.innerText = "⏳ กำลังค้นหาข้อมูล...";
       ld.style.display = 'block';
 
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "searchOnly", batchNo: bNo })
-      })
-      .then(res => res.json())
+      postJSON({ action: "searchOnly", batchNo: bNo })
       .then(res => {
         ld.style.display = 'none';
         if (!res.success) { alert(res.msg); return; }
@@ -514,7 +527,7 @@
         // สร้างแถวป้ายสำหรับพิมพ์เพิ่มอีก 1 แถว ตามจำนวนรายการที่มีตอนนี้
         appendPrintLabelRow(res);
       })
-      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
     }
 
     // สร้างแถวป้าย 6 ช่อง เรียงแนวนอนในแถวเดียวกัน ตามฟอนต์/ขนาดที่กำหนด
@@ -523,18 +536,21 @@
       const first8 = batchVal.substring(0, 8);
       const last6 = batchVal.length >= 6 ? batchVal.substring(batchVal.length - 6) : batchVal;
       const weightFormatted = formatWeightComma(item.weight);
+      const container = document.getElementById('print-label-container');
 
-      const row = document.createElement('div');
-      row.className = 'print-label-row';
-      row.innerHTML = `
-        <input type="text" class="lbl-225" readonly value="${first8}">
-        <input type="text" class="lbl-290" readonly value="${last6}">
-        <input type="text" class="lbl-225" readonly value="${first8}">
-        <input type="text" class="lbl-290" readonly value="${last6}">
-        <input type="text" class="lbl-225" readonly value="${item.size}">
-        <input type="text" class="lbl-290" readonly value="${weightFormatted}">
-      `;
-      document.getElementById('print-label-container').appendChild(row);
+      function makePage(topVal, bottomVal) {
+        const page = document.createElement('div');
+        page.className = 'print-page';
+        page.innerHTML = `
+          <input type="text" class="lbl-225" readonly value="${topVal}">
+          <input type="text" class="lbl-290" readonly value="${bottomVal}">
+        `;
+        container.appendChild(page);
+      }
+
+      makePage(first8, last6);              // หน้า 1: ป้าย Batch No ชุดที่ 1
+      makePage(first8, last6);              // หน้า 2: ป้าย Batch No ชุดที่ 2 (สำรอง/ก็อปปี้)
+      makePage(item.size, weightFormatted); // หน้า 3: ป้าย Size / Weight
     }
 
     // เลือกว่า container ไหนจะถูกพิมพ์ตอนนี้ (ล้าง .print-target ตัวอื่นออกก่อนเสมอ กันโชว์ผิดพื้นที่)
@@ -553,18 +569,14 @@
       ld.innerText = "⏳ กำลังบันทึกข้อมูล...";
       ld.style.display = 'block';
 
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "finalizeReceive", items: receiveItems, truckPlateNo: truckPlateNo })
-      })
-      .then(res => res.json())
+      postJSON({ action: "finalizeReceive", items: receiveItems, truckPlateNo: truckPlateNo })
       .then(res => {
         ld.style.display = 'none';
         if (!res.success) { alert(res.msg); return; }
         preparePrint('print-label-container');
         window.print();
       })
-      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
     }
 
     // หน้า Report: โหลด Daily Receive Report ตามวันที่ที่เลือก แยกเป็น Coil / Sheet
@@ -578,18 +590,14 @@
       ld.innerText = "⏳ กำลังโหลดรายงาน...";
       ld.style.display = 'block';
 
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "getDailyReceiveReport", date: dateVal })
-      })
-      .then(res => res.json())
+      postJSON({ action: "getDailyReceiveReport", date: dateVal })
       .then(res => {
         ld.style.display = 'none';
         if (!res.success) { alert(res.msg); return; }
         lastReportResult = res;
         renderDailyReport(res);
       })
-      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
     }
 
     function buildReportSection(title, section, unitLabel) {
@@ -646,8 +654,9 @@
           startY: y,
           head: [['No', 'Batch No', 'Size', 'Spec', 'Weight', 'Quantity', 'Inspection', 'Maker', 'Truck No']],
           body: section.rows.map(r => [r.no, r.batchNo, r.size, r.spec, r.weight, r.quantity, r.inspection, r.maker, r.truckNo]),
-          styles: { fontSize: 7, cellPadding: 2 },
-          headStyles: { fillColor: [55, 71, 79] },
+          theme: 'grid', // ทำให้มีเส้นขอบรอบทุกเซลล์ (ไม่ใช่แค่ theme 'striped'/'plain' ที่ไม่มีเส้น)
+          styles: { fontSize: 7, cellPadding: 2, lineColor: [55, 71, 79], lineWidth: 0.2 },
+          headStyles: { fillColor: [55, 71, 79], lineColor: [55, 71, 79], lineWidth: 0.2 },
           margin: { left: 10, right: 10 }
         });
 
@@ -676,11 +685,7 @@
       ld.innerText = "⏳ กำลังค้นหาข้อมูล Excel...";
       ld.style.display = 'block';
       
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "search", batchNo: bNo })
-      })
-      .then(res => res.json())
+      postJSON({ action: "search", batchNo: bNo })
       .then(res => {
         ld.style.display = 'none';
         if(res.success) {
@@ -696,7 +701,7 @@
           bInp.value = '';
         } else { alert(res.msg); }
       })
-      .catch(e => { ld.style.display = 'none'; alert('เชื่อมต่อผิดพลาด: ' + e); });
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
     }
     
     function clearPageData(md) {
@@ -728,16 +733,12 @@
       
       document.getElementById('move-loading').style.display = 'block';
       
-      fetch(BACKEND_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "move", rowsData: svData })
-      })
-      .then(res => res.json())
+      postJSON({ action: "move", rowsData: svData })
       .then(res => {
         document.getElementById('move-loading').style.display = 'none';
         if(res.success) { alert(res.msg); clearPageData('move'); } else { alert('ล้มเหลว: ' + res.msg); }
       })
-      .catch(e => { document.getElementById('move-loading').style.display = 'none'; alert('เอเรอร์เซิร์ฟเวอร์: ' + e); });
+      .catch(e => { document.getElementById('move-loading').style.display = 'none'; alert(e.message || ('เอเรอร์เซิร์ฟเวอร์: ' + e)); });
     }
   </script>
 </body>
