@@ -119,7 +119,7 @@
   <div id="menu-page" class="menu-container">
     <button class="btn-main btn-blue" onclick="switchPage('view-page')">ดูแถว</button>
     <button class="btn-main btn-orange" onclick="switchPage('move-page')">ย้ายแถว</button>
-    <button class="btn-main btn-purple" onclick="switchPage('job-page')">Job</button>
+    <button class="btn-main btn-purple" onclick="switchPage('job-menu-page')">Job</button>
     <button class="btn-main btn-upload" onclick="switchPage('receive-page')">📥 รับเข้า</button>
     <button class="btn-main btn-report" onclick="switchPage('report-page')">📊 Report</button>
     <!-- <button class="btn-main btn-logout" onclick="doLogout()">🚪 ออกจากระบบ</button> -->
@@ -217,13 +217,99 @@
       <button class="btn-submit" onclick="submitMoveData()">📦 ย้ายแถว</button>
     </div>
   </div>
-   <!-- หน้า Job -->
-  <div id="job-page" class="page" style="text-align: center; padding-top: 50px;">
+   <!-- เมนูย่อยหน้า Job -->
+  <div id="job-menu-page" class="menu-container">
+    <button class="btn-back" onclick="switchPage('menu-page')" style="width:100%;">⬅ กลับ</button>
+    <button class="btn-main btn-blue" onclick="switchPage('job-record-page')">📝 จด Job</button>
+    <button class="btn-main btn-orange" onclick="switchPage('cut-coil-page')">✂️ ตัด Coil</button>
+  </div>
+
+  <!-- หน้าจด Job -->
+  <div id="job-record-page" class="page">
     <div class="header-bar">
-      <button class="btn-back" onclick="switchPage('menu-page')">⬅ กลับ</button>
-      <h2>หน้า Job</h2>
+      <button class="btn-back" onclick="switchPage('job-menu-page')">⬅ กลับ</button>
+      <h2>จด Job</h2>
     </div>
-    <p style="font-size: 1.6rem; color: #78909c; font-weight: bold;">⏳ รออัพเดต</p>
+
+    <div class="form-group">
+      <label>ชีตปลายทาง:</label>
+      <select id="record-sheet-select" class="form-control"></select>
+    </div>
+
+    <div class="form-group">
+      <label>ถ่ายภาพช่อง "Batch No." บนใบสั่งงาน:</label>
+      <input type="file" id="record-photo" class="form-control" accept="image/*" capture="environment" onchange="extractBatchFromPhotoRecord(this)">
+    </div>
+
+    <div class="form-group">
+      <label>Batch No. (พิมพ์เองก็ได้):</label>
+      <input type="text" id="record-batchno" class="form-control" placeholder="พิมพ์หรือถ่ายภาพ" enterkeyhint="go" onkeyup="if(event.key==='Enter'||event.keyCode===13||event.which===13){ event.preventDefault(); searchAndAddRecordRow(false); }">
+    </div>
+
+    <div id="record-loading" class="loading">⏳ กำลังประมวลผล...</div>
+    <div class="btn-group">
+      <button class="btn-action btn-add" onclick="searchAndAddRecordRow(false)">➕ เพิ่ม</button>
+      <button class="btn-action btn-scan" onclick="searchAndAddRecordRow(true)">⤴️ แทรก</button>
+    </div>
+
+    <div class="table-container">
+      <table id="record-table">
+        <thead><tr><th>ตัดไม่หมด</th><th>BatchNo</th><th>Sloc</th><th>Size</th><th>Weight</th><th>Maker</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="btn-bottom-group">
+      <button class="btn-clear" onclick="clearRecordPage()">🗑️ ล้างทั้งหมด</button>
+      <button class="btn-submit" onclick="saveJobSheet()">💾 Save</button>
+    </div>
+  </div>
+
+  <!-- หน้าตัด Coil -->
+  <div id="cut-coil-page" class="page">
+    <div class="header-bar">
+      <button class="btn-back" onclick="switchPage('job-menu-page')">⬅ กลับ</button>
+      <h2>ตัด Coil</h2>
+    </div>
+
+    <div class="form-group">
+      <label>ดึงรายการจากชีตงาน:</label>
+      <select id="cut-sheet-select" class="form-control"></select>
+    </div>
+    <div class="btn-group">
+      <button class="btn-action btn-add" onclick="loadCutSheetRows()">🔄 โหลดรายการ</button>
+    </div>
+    <div id="cut-list-loading" class="loading">⏳ กำลังโหลดรายการ...</div>
+    <div class="table-container">
+      <table id="cut-table">
+        <thead><tr><th>BatchNo</th><th>Sloc</th><th>Size</th><th>Weight</th><th>Maker</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <hr style="margin: 25px 0; border-color: #ddd;">
+    <div style="font-weight: bold; color: #37474f; margin-bottom: 10px;">หรือตัดแบบพิมพ์/ถ่ายภาพเอง:</div>
+
+    <div class="form-group">
+      <label>ถ่ายภาพช่อง "Batch No." บนใบสั่งงาน:</label>
+      <input type="file" id="cut-photo" class="form-control" accept="image/*" capture="environment" onchange="extractBatchFromPhotoCut(this)">
+    </div>
+    <div id="cut-extract-loading" class="loading">⏳ กำลังอ่านข้อมูลจากภาพ...</div>
+
+    <div class="form-group">
+      <label>Batch No. (ตรวจสอบ/แก้ไขได้ถ้าอ่านผิด):</label>
+      <input type="text" id="cut-batchno" class="form-control" placeholder="จะขึ้นอัตโนมัติหลังถ่ายภาพ หรือพิมพ์เองก็ได้">
+    </div>
+    <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="cut-not-fully" style="width:20px; height:20px;">
+      <label for="cut-not-fully" style="margin:0;">ตัดไม่หมด (ไปเก็บที่ McStopCoil แทน McCoilCut)</label>
+    </div>
+
+    <div id="cut-loading" class="loading">⏳ กำลังประมวลผล...</div>
+    <div class="btn-bottom-group">
+      <button class="btn-clear" onclick="clearCutPage()">🗑️ ล้างข้อมูล</button>
+      <button class="btn-submit" onclick="moveToCut()">✂️ ตัด</button>
+    </div>
   </div>
 
   <!-- หน้ารับเข้า -->
@@ -233,6 +319,10 @@
       <h2>หน้ารับเข้า</h2>
     </div>
 
+    <div class="form-group">
+      <label>วันที่รับเข้า (เว้นว่าง = วันนี้ — ใช้สำหรับรับเข้าย้อนหลัง):</label>
+      <input type="date" id="receive-date" class="form-control">
+    </div>
     <div class="form-group">
       <label>ทะเบียนรถ (##-####):</label>
       <input type="text" id="receive-truckplate" class="form-control" placeholder="00-0000 หรือ 000-0000" maxlength="8" oninput="formatTruckPlate(this)">
@@ -279,7 +369,7 @@
 
   <script>
     // 🔴 วาง URL เว็บแอปจาก Google Apps Script (ลงท้ายด้วย /exec) ตรงช่องนี้
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzpd5Mkxi_hSGXNLe1y0KLCrsbjq84dNmVUUgdkGnn05yjfppo7X-cQcZO_c9QSzX3t/exec";
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwLh6zGGwd2I3P65jZnmN9Ji9Zz_d_QaY2FBimrQO-p4gBbylcfDboUJHP4lPNxMJPuVQ/exec";
 
     // เรียก backend แบบปลอดภัยขึ้น: บางครั้ง Apps Script อาจส่งหน้า HTML error กลับมาแทน JSON
     // ชั่วคราว (เช่น execution timeout หรือมีคนใช้พร้อมกันเยอะเกิน concurrent limit)
@@ -336,11 +426,15 @@
       document.getElementById('menu-page').style.display = 'none';
       document.getElementById('view-page').style.display = 'none';
       document.getElementById('move-page').style.display = 'none';
-      document.getElementById('job-page').style.display = 'none';
+      document.getElementById('job-menu-page').style.display = 'none';
+      document.getElementById('job-record-page').style.display = 'none';
+      document.getElementById('cut-coil-page').style.display = 'none';
       document.getElementById('receive-page').style.display = 'none';
       document.getElementById('report-page').style.display = 'none';
       const tg = document.getElementById(pId);
-      if (pId === 'menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
+      if (pId === 'menu-page' || pId === 'job-menu-page') { tg.style.display = 'flex'; } else { tg.style.display = 'block'; }
+      if (pId === 'job-record-page') { loadJobSheetsDropdown('record-sheet-select'); }
+      if (pId === 'cut-coil-page') { loadJobSheetsDropdown('cut-sheet-select'); }
     }
     
     // 🛠️ ซ่อมคำสั่งดึงเลนส์กล้องหลังตรงๆ ปลดล็อกปัญหากล้องจอดำบน GitHub Pages
@@ -480,6 +574,203 @@
     // เก็บรายการที่ค้นเจอไว้ในตัวแปรนี้ ระหว่างรอกดปุ่ม "พิมพ์" ถึงจะค่อยย้ายข้อมูลจริง
     let receiveItems = [];
 
+    // ถ่ายภาพแล้วส่งให้ Gemini อ่าน Batch No. ให้อัตโนมัติ — ใช้ร่วมกันทั้งหน้า "จด Job" และ "ตัด Coil"
+    function doExtractBatchFromFile(file, loadingEl, onSuccess) {
+      if (!file) return;
+      loadingEl.innerText = "⏳ กำลังอ่านข้อมูลจากภาพ...";
+      loadingEl.style.display = 'block';
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64 = e.target.result.split(',')[1]; // ตัด header "data:image/jpeg;base64," ออก
+
+        postJSON({ action: "extractBatchFromImage", imageBase64: base64 })
+        .then(res => {
+          loadingEl.style.display = 'none';
+          if (res.success) { onSuccess(res.batchNo); } else { alert(res.msg); }
+        })
+        .catch(err => { loadingEl.style.display = 'none'; alert(err.message || ('เชื่อมต่อผิดพลาด: ' + err)); });
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ===== หน้าตัด Coil =====
+    function extractBatchFromPhotoCut(inp) {
+      doExtractBatchFromFile(inp.files[0], document.getElementById('cut-extract-loading'), function(batchNo) {
+        document.getElementById('cut-batchno').value = batchNo;
+      });
+    }
+
+    // ตัด Batch No. (ค่าเดิม ไม่เปลี่ยน) จาก McCoilAll ไปเก็บที่ McCoilCut (ตัดหมด) หรือ McStopCoil (ตัดไม่หมด)
+    function moveToCut() {
+      const batchNo = document.getElementById('cut-batchno').value.trim();
+      if (!batchNo) { alert('กรุณาถ่ายภาพหรือพิมพ์ Batch No. ก่อน'); return; }
+      const notFullyCut = document.getElementById('cut-not-fully').checked;
+
+      const ld = document.getElementById('cut-loading');
+      ld.innerText = "⏳ กำลังประมวลผล...";
+      ld.style.display = 'block';
+
+      postJSON({ action: "moveToCut", batchNo: batchNo, notFullyCut: notFullyCut })
+      .then(res => {
+        ld.style.display = 'none';
+        alert(res.msg);
+        if (res.success) { clearCutPage(); }
+      })
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
+    }
+
+    function clearCutPage() {
+      document.getElementById('cut-batchno').value = '';
+      document.getElementById('cut-photo').value = '';
+      document.getElementById('cut-not-fully').checked = false;
+    }
+
+    // โหลดรายการจากชีตงานที่เลือกใน dropdown มาแสดงเป็นตาราง พร้อมปุ่ม "ตัด" ต่อแถว
+    let cutRows = [];
+
+    function loadCutSheetRows() {
+      const sheetName = document.getElementById('cut-sheet-select').value;
+      if (!sheetName) { alert('กรุณาเลือกชีตก่อน'); return; }
+
+      const ld = document.getElementById('cut-list-loading');
+      ld.innerText = "⏳ กำลังโหลดรายการ...";
+      ld.style.display = 'block';
+
+      postJSON({ action: "getJobSheetRows", sheetName: sheetName })
+      .then(res => {
+        ld.style.display = 'none';
+        if (!res.success) { alert(res.msg); return; }
+        cutRows = res.rows;
+        renderCutTable();
+      })
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
+    }
+
+    function renderCutTable() {
+      const tb = document.querySelector('#cut-table tbody');
+      tb.innerHTML = '';
+      if (cutRows.length === 0) {
+        tb.innerHTML = '<tr><td colspan="7">— ไม่มีรายการ —</td></tr>';
+        return;
+      }
+      cutRows.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.batchNo}</td><td>${r.sloc}</td><td>${r.size}</td><td>${r.weight}</td><td>${r.maker}</td>
+          <td>${r.notFullyCut ? 'ตัดไม่หมด' : 'ตัดหมด'}</td>
+          <td><button class="btn-action btn-scan" style="padding:6px 12px;font-size:0.85rem;" onclick="cutRowAction(${idx})">✂️ ตัด</button></td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    // กดปุ่ม "ตัด" ของแต่ละแถว: ใช้สถานะ notFullyCut ที่บันทึกไว้แล้วจากหน้าจด Job กำหนดปลายทางให้อัตโนมัติ
+    function cutRowAction(idx) {
+      const row = cutRows[idx];
+      const ld = document.getElementById('cut-list-loading');
+      ld.innerText = "⏳ กำลังประมวลผล...";
+      ld.style.display = 'block';
+
+      postJSON({ action: "moveToCut", batchNo: row.batchNo, notFullyCut: row.notFullyCut })
+      .then(res => {
+        ld.style.display = 'none';
+        alert(res.msg);
+        if (res.success) {
+          cutRows.splice(idx, 1); // เอาออกจากตารางที่แสดงบนหน้าเว็บ (ไม่ได้ไปลบในชีตงาน S4/B1)
+          renderCutTable();
+        }
+      })
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
+    }
+
+    // ===== หน้าจด Job =====
+    let recordRows = []; // แต่ละแถว: {batchNo, sloc, size, weight, maker, notFullyCut}
+
+    function extractBatchFromPhotoRecord(inp) {
+      doExtractBatchFromFile(inp.files[0], document.getElementById('record-loading'), function(batchNo) {
+        document.getElementById('record-batchno').value = batchNo;
+        searchAndAddRecordRow(false);
+      });
+    }
+
+    // โหลดรายชื่อชีตปลายทาง (S4, B1, ...) มาใส่ใน dropdown ที่ระบุ — ใช้ร่วมกันทั้งหน้าจด Job และหน้าตัด Coil
+    function loadJobSheetsDropdown(selectId) {
+      const sel = document.getElementById(selectId);
+      postJSON({ action: "listJobSheets" })
+      .then(res => {
+        if (!res.success) { alert(res.msg); return; }
+        sel.innerHTML = res.sheets.map(name => `<option value="${name}">${name}</option>`).join('');
+      })
+      .catch(e => alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)));
+    }
+
+    // ค้นหา Batch No. ใน McCoilAll แล้วต่อเป็นแถวใหม่ในตาราง — insertAtTop=true คือปุ่ม "แทรก" (งานแทรก)
+    function searchAndAddRecordRow(insertAtTop) {
+      const bInp = document.getElementById('record-batchno');
+      const bNo = bInp.value.trim();
+      if (!bNo) { alert('กรุณากรอกหรือถ่ายภาพ Batch No. ก่อน'); return; }
+
+      const ld = document.getElementById('record-loading');
+      ld.innerText = "⏳ กำลังค้นหาข้อมูล...";
+      ld.style.display = 'block';
+
+      postJSON({ action: "search", batchNo: bNo })
+      .then(res => {
+        ld.style.display = 'none';
+        if (!res.success) { alert(res.msg); return; }
+
+        const rowData = { batchNo: res.batchNo, sloc: res.sloc, size: res.size, weight: res.weight, maker: res.maker, notFullyCut: false };
+        if (insertAtTop) { recordRows.unshift(rowData); } else { recordRows.push(rowData); }
+
+        bInp.value = '';
+        renderRecordTable();
+      })
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
+    }
+
+    function renderRecordTable() {
+      const tb = document.querySelector('#record-table tbody');
+      tb.innerHTML = '';
+      recordRows.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="text-align:center;"><input type="checkbox" ${r.notFullyCut ? 'checked' : ''} onchange="recordRows[${idx}].notFullyCut = this.checked"></td>
+          <td>${r.batchNo}</td><td>${r.sloc}</td><td>${r.size}</td><td>${r.weight}</td><td>${r.maker}</td>
+          <td><button class="btn-clear" style="padding:4px 10px;font-size:0.8rem;" onclick="removeRecordRow(${idx})">ลบ</button></td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function removeRecordRow(idx) {
+      recordRows.splice(idx, 1);
+      renderRecordTable();
+    }
+
+    // กด Save: ล้างข้อมูลเก่าในชีตที่เลือกทิ้ง แล้ววางรายการชุดนี้ลงไปแทนทั้งหมด
+    function saveJobSheet() {
+      const sheetName = document.getElementById('record-sheet-select').value;
+      if (!sheetName) { alert('กรุณาเลือกชีตปลายทางก่อน'); return; }
+      if (recordRows.length === 0) { alert('ยังไม่มีรายการให้บันทึก'); return; }
+
+      const ld = document.getElementById('record-loading');
+      ld.innerText = "⏳ กำลังบันทึก...";
+      ld.style.display = 'block';
+
+      postJSON({ action: "saveJobSheet", sheetName: sheetName, rows: recordRows })
+      .then(res => {
+        ld.style.display = 'none';
+        alert(res.msg);
+      })
+      .catch(e => { ld.style.display = 'none'; alert(e.message || ('เชื่อมต่อผิดพลาด: ' + e)); });
+    }
+
+    function clearRecordPage() {
+      recordRows = [];
+      renderRecordTable();
+      document.getElementById('record-batchno').value = '';
+      document.getElementById('record-photo').value = '';
+    }
+
     // จัดรูปแบบทะเบียนรถอัตโนมัติ: รองรับทั้งแบบ ##-#### (6 หลัก) และ ###-#### (7 หลัก)
     // พิมพ์ตัวเลขไปเรื่อยๆ ถ้าพิมพ์ครบ 7 หลัก ระบบจะสลับไปใช้รูปแบบ 3-4 ให้อัตโนมัติ
     function formatTruckPlate(inp) {
@@ -565,11 +856,12 @@
       if (receiveItems.length === 0) { alert('ยังไม่มีรายการให้พิมพ์'); return; }
 
       const truckPlateNo = document.getElementById('receive-truckplate').value.trim();
+      const receiveDate = document.getElementById('receive-date').value; // ว่าง = ให้ backend ใช้วันนี้เป็นค่าเริ่มต้น
       const ld = document.getElementById('receive-loading');
       ld.innerText = "⏳ กำลังบันทึกข้อมูล...";
       ld.style.display = 'block';
 
-      postJSON({ action: "finalizeReceive", items: receiveItems, truckPlateNo: truckPlateNo })
+      postJSON({ action: "finalizeReceive", items: receiveItems, truckPlateNo: truckPlateNo, receiveDate: receiveDate })
       .then(res => {
         ld.style.display = 'none';
         if (!res.success) { alert(res.msg); return; }
@@ -673,6 +965,7 @@
       receiveItems = [];
       document.getElementById('receive-batch').value = '';
       document.getElementById('receive-truckplate').value = '';
+      document.getElementById('receive-date').value = '';
       document.querySelector('#receive-table tbody').innerHTML = '';
       document.getElementById('print-label-container').innerHTML = '';
     }
